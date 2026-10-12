@@ -1,4 +1,6 @@
 import { pointsFor, levelFor } from './score.js';
+import { playWeek, newRun, coinsFor, businessChoices, WEEKS, EVENTS } from './game.js';
+import { breakEvenUnits, BUSINESSES } from './sim.js';
 
 /**
  * One Worker: static files, the game API, and the tutor.
@@ -103,6 +105,82 @@ export default {
             ).bind(points, level, id).run();
 
             return reply({ gained, points, level });
+        }
+
+        if (path === '/api/businesses') {
+            return reply({ choices: businessChoices(), weeks: WEEKS });
+        }
+
+        // Start a run. Choosing again replaces the old one: a student is
+        // allowed to start over, and losing is meant to be cheap.
+        if (path === '/api/run' && request.method === 'POST') {
+            const body = await readBody(request);
+            const run = newRun(newId(), String(body?.business || ''));
+            await env.DB.prepare(
+                'INSERT INTO run (id, student_id, business, week, cash, over) VALUES (?, ?, ?, ?, ?, 0)'
+            ).bind(run.id, id, run.business, run.week, run.cash).run();
+            return reply({ run, info: BUSINESSES[run.business] });
+        }
+
+        // The run in progress, so closing the tab does not lose the game.
+        if (path === '/api/run') {
+            const row = await env.DB.prepare(
+                'SELECT id, business, week, cash, over FROM run WHERE student_id = ? ORDER BY created_at DESC LIMIT 1'
+            ).bind(id).first();
+            if (!row) return reply({ run: null });
+            return reply({
+                run: { ...row, over: !!row.over },
+                info: BUSINESSES[row.business],
+                breakEven: breakEvenUnits(row.business, BUSINESSES[row.business].refPrice),
+            });
+        }
+
+        // Play one week. The only place the game actually advances.
+        if (path === '/api/week' && request.method === 'POST') {
+            const body = await readBody(request);
+            const row = await env.DB.prepare(
+                'SELECT id, business, week, cash, over FROM run WHERE student_id = ? ORDER BY created_at DESC LIMIT 1'
+            ).bind(id).first();
+
+            if (!row) return reply({ error: 'start a run first' }, 400);
+            if (row.over) return reply({ error: 'this run has finished' }, 409);
+
+            const out = playWeek({ ...row, over: !!row.over }, {
+                price: body?.price,
+                stock: body?.stock,
+            });
+            const coins = coinsFor(out.result);
+
+            // The run and the week's record move together: a half-written week
+            // would leave a student's cash disagreeing with their own history.
+            await env.DB.batch([
+                env.DB.prepare('UPDATE run SET week = ?, cash = ?, over = ? WHERE id = ?')
+                    .bind(out.run.week, out.run.cash, out.over ? 1 : 0, row.id),
+                env.DB.prepare('INSERT INTO event (student_id, kind, payload, points) VALUES (?, ?, ?, ?)')
+                    .bind(id, 'week_played', JSON.stringify({
+                        run: row.id, week: row.week, event: out.eventKey,
+                        price: body?.price, stock: body?.stock, profit: out.result.profit,
+                    }).slice(0, 2000), coins),
+            ]);
+
+            const sum = await env.DB
+                .prepare('SELECT COALESCE(SUM(points), 0) AS points FROM event WHERE student_id = ?')
+                .bind(id).first();
+            const points = sum?.points ?? 0;
+            await env.DB.prepare(
+                'UPDATE progress SET points = ?, level = ?, updated_at = datetime(\'now\') WHERE student_id = ?'
+            ).bind(points, levelFor(points), id).run();
+
+            return reply({
+                week: row.week,
+                result: out.result,
+                run: out.run,
+                over: out.over,
+                ending: out.ending,
+                coins,
+                points,
+                level: levelFor(points),
+            });
         }
 
         if (path === '/api/tutor' && request.method === 'POST') {

@@ -4,56 +4,304 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Business Playground</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600&display=swap">
 <style>
-  :root { --ink:#15202b; --bg:#fbf9f4; --card:#fff; --line:#e4ded0; --accent:#1f6f4a; }
+  :root {
+    --ink:#1d2b24; --dim:#5f7268; --bg:#f4f1e8; --card:#fffdf7;
+    --line:#ded6c2; --accent:#0f7b52; --warm:#c4601f; --bad:#b03a2e;
+    --shadow: 0 1px 0 #e6dfcd, 0 10px 24px -18px rgba(29,43,36,.5);
+  }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-    --ink:#eceff3; --bg:#12151a; --card:#1a1f26; --line:#2b323c; --accent:#4ec08a; } }
+    --ink:#edf2ee; --dim:#9aae9f; --bg:#10140f; --card:#191f19;
+    --line:#2b332b; --accent:#4bbd88; --warm:#e6935a; --bad:#e9705f;
+    --shadow: 0 1px 0 #222a22, 0 10px 24px -18px #000;
+  }}
+  :root[data-theme="dark"] {
+    --ink:#edf2ee; --dim:#9aae9f; --bg:#10140f; --card:#191f19;
+    --line:#2b332b; --accent:#4bbd88; --warm:#e6935a; --bad:#e9705f;
+  }
   * { box-sizing:border-box }
-  body { margin:0; padding:24px 16px; background:var(--bg); color:var(--ink);
-         font:16px/1.55 system-ui, sans-serif }
-  main { max-width:640px; margin:0 auto; display:flex; flex-direction:column; gap:16px }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px }
-  h1 { font-size:1.4rem; margin:0 0 4px }
-  .stat { display:flex; gap:24px; font-variant-numeric:tabular-nums }
-  .stat b { font-size:1.6rem; display:block }
-  button { background:var(--accent); color:#fff; border:0; border-radius:8px;
-           padding:10px 14px; font:inherit; cursor:pointer }
-  input { width:100%; padding:10px; border:1px solid var(--line); border-radius:8px;
-          background:var(--bg); color:var(--ink); font:inherit }
-  #answer { white-space:pre-wrap; margin-top:12px }
-  .muted { color:#8b8577; font-size:.85rem }
+  body {
+    margin:0; padding:24px 16px 64px; background:var(--bg); color:var(--ink);
+    font:16px/1.55 Inter, system-ui, sans-serif; -webkit-font-smoothing:antialiased;
+  }
+  main { max-width:620px; margin:0 auto; display:flex; flex-direction:column; gap:18px }
+  h1, h2 { font-family:'Bricolage Grotesque', Inter, sans-serif; font-weight:800; }
+  h1 { font-size:1.75rem; margin:0; letter-spacing:-.02em; text-wrap:balance }
+  h2 { font-size:1.2rem; margin:0 0 2px; letter-spacing:-.01em; text-wrap:balance }
+  .sub { color:var(--dim); font-size:.92rem; margin:2px 0 0 }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px;
+          padding:18px; box-shadow:var(--shadow) }
+
+  .hud { display:flex; gap:10px; flex-wrap:wrap }
+  .hud div { flex:1 1 0; min-width:92px; background:var(--card); border:1px solid var(--line);
+             border-radius:12px; padding:10px 12px }
+  .hud span { display:block; font-size:.68rem; letter-spacing:.09em; text-transform:uppercase; color:var(--dim) }
+  .hud b { font-family:'Bricolage Grotesque', sans-serif; font-size:1.4rem; font-variant-numeric:tabular-nums }
+
+  label { display:block; font-weight:600; font-size:.9rem; margin:0 0 6px }
+  .row { display:flex; gap:12px; flex-wrap:wrap }
+  .row > div { flex:1 1 160px }
+  input[type=number] {
+    width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:10px;
+    background:var(--bg); color:var(--ink); font:600 1.1rem Inter, sans-serif;
+    font-variant-numeric:tabular-nums;
+  }
+  input:focus-visible, button:focus-visible { outline:2px solid var(--accent); outline-offset:2px }
+
+  button {
+    background:var(--accent); color:#fff; border:0; border-radius:10px;
+    padding:12px 18px; font:600 1rem Inter, sans-serif; cursor:pointer;
+  }
+  button:hover { filter:brightness(1.07) }
+  button.ghost { background:transparent; color:var(--ink); border:1px solid var(--line) }
+  button[disabled] { opacity:.5; cursor:not-allowed }
+
+  .hint { margin:12px 0 0; padding:10px 12px; border-left:3px solid var(--warm);
+          background:color-mix(in srgb, var(--warm) 9%, transparent);
+          border-radius:0 8px 8px 0; font-size:.92rem }
+  .hint b { font-variant-numeric:tabular-nums }
+
+  .pick { display:grid; gap:10px }
+  .pick button { text-align:left; background:var(--card); color:var(--ink);
+                 border:1px solid var(--line); padding:14px 16px; display:flex;
+                 justify-content:space-between; align-items:baseline; gap:12px }
+  .pick button:hover { border-color:var(--accent) }
+  .pick small { color:var(--dim); font-weight:500; font-variant-numeric:tabular-nums }
+
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums }
+  td { padding:7px 0; border-bottom:1px solid var(--line) }
+  td:last-child { text-align:right; font-weight:600 }
+  tr.total td { border-bottom:0; border-top:2px solid var(--ink); padding-top:10px;
+                font-family:'Bricolage Grotesque',sans-serif; font-size:1.1rem }
+  .neg { color:var(--bad) } .pos { color:var(--accent) }
+  .waste td { color:var(--warm) }
+
+  .why { margin-top:14px; padding:14px; border-radius:10px;
+         background:color-mix(in srgb, var(--accent) 8%, transparent);
+         border:1px solid color-mix(in srgb, var(--accent) 25%, transparent); font-size:.95rem }
+  .hidden { display:none }
+  footer { text-align:center; color:var(--dim); font-size:.8rem; margin-top:8px }
 </style>
 </head>
 <body>
 <main>
-  <div class="card">
+
+  <header>
     <h1>Business Playground</h1>
-    <p class="muted">Scaffold — the game loop is not designed yet.</p>
-    <div class="stat"><span>Points <b id="points">–</b></span><span>Level <b id="level">–</b></span></div>
-    <p><button id="earn">Finish a lesson (+10)</button></p>
-  </div>
-  <div class="card">
-    <label for="q"><strong>Ask the tutor</strong></label>
-    <p><input id="q" placeholder="What is profit?"></p>
-    <button id="ask">Ask</button>
-    <div id="answer"></div>
-  </div>
+    <p class="sub">Run a real shop for eight weeks. Find out what actually makes money.</p>
+  </header>
+
+  <section id="pickCard" class="card hidden">
+    <h2>Choose your business</h2>
+    <p class="sub">You keep it for the whole game. Each one behaves differently.</p>
+    <div class="pick" id="pick"></div>
+  </section>
+
+  <section id="playCard" class="hidden">
+    <div class="hud">
+      <div><span>Week</span><b id="hWeek">1</b></div>
+      <div><span>Cash</span><b id="hCash">0</b></div>
+      <div><span>Coins</span><b id="hCoins">0</b></div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h2 id="bizName">Tea stall</h2>
+      <p class="sub" id="bizFacts"></p>
+
+      <div class="row" style="margin-top:14px">
+        <div>
+          <label for="price">Price you charge</label>
+          <input id="price" type="number" min="0" step="1" value="10" inputmode="numeric">
+        </div>
+        <div>
+          <label for="stock" id="stockLabel">How many to buy</label>
+          <input id="stock" type="number" min="0" step="1" value="100" inputmode="numeric">
+        </div>
+      </div>
+
+      <p class="hint" id="hint"></p>
+
+      <p style="margin:16px 0 0"><button id="run">Run the week</button></p>
+    </div>
+  </section>
+
+  <section id="resultCard" class="card hidden">
+    <h2 id="eventLine">A normal week</h2>
+    <p class="sub" id="soldLine"></p>
+    <table id="ledger"></table>
+    <p class="sub" id="cashLine" style="margin-top:10px"></p>
+    <div id="why" class="why hidden"></div>
+    <p style="margin:16px 0 0; display:flex; gap:10px; flex-wrap:wrap">
+      <button id="whyBtn" class="ghost">Why?</button>
+      <button id="next">Next week</button>
+    </p>
+  </section>
+
+  <section id="endCard" class="card hidden">
+    <h2 id="endTitle">Eight weeks done</h2>
+    <p class="sub" id="endLine"></p>
+    <table id="endTable"></table>
+    <p style="margin:16px 0 0"><button id="again">Play again</button></p>
+  </section>
+
+  <footer>Nothing here is real money. Learn by losing it.</footer>
 </main>
+
 <script>
 const $ = (id) => document.getElementById(id);
-const show = (d) => { $('points').textContent = d.points; $('level').textContent = d.level; };
+const rupees = (n) => (n < 0 ? '-₹' : '₹') + Math.abs(Math.round(n)).toLocaleString('en-IN');
+const show = (id) => {
+  for (const el of document.querySelectorAll('main > section')) el.classList.add('hidden');
+  $(id).classList.remove('hidden');
+};
 
 const api = async (path, body) => (await fetch(path, body ? {
   method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
 } : {})).json();
 
-api('/api/me').then(show);
-$('earn').onclick = async () => show(await api('/api/event', { kind: 'lesson_done' }));
-$('ask').onclick = async () => {
-  $('answer').textContent = 'Thinking…';
-  const r = await api('/api/tutor', { question: $('q').value });
-  $('answer').textContent = r.answer || r.error || 'No answer.';
+let STATE = { run: null, info: null, last: null, coins: 0 };
+
+/* Break-even, recalculated as the student types. This line is level four of
+   the curriculum taught without a lesson: move the price, watch how many you
+   must sell just to cover the rent. */
+function refreshHint() {
+  const info = STATE.info; if (!info) return;
+  const price = Number($('price').value);
+  const margin = price - info.unitCost;
+  const el = $('hint');
+  if (!(margin > 0)) {
+    el.innerHTML = 'At <b>' + rupees(price || 0) + '</b> you earn nothing on each sale — it costs you '
+                 + rupees(info.unitCost) + '. You cannot cover the rent at this price.';
+    return;
+  }
+  el.innerHTML = 'At <b>' + rupees(price) + '</b> you keep <b>' + rupees(margin)
+               + '</b> per sale, so you must sell <b>' + Math.ceil(info.weeklyFixed / margin)
+               + '</b> just to cover the ' + rupees(info.weeklyFixed) + ' rent.';
+}
+
+function paintPlay() {
+  const run = STATE.run, info = STATE.info;
+  $('hWeek').textContent = run.week;
+  $('hCash').textContent = rupees(run.cash);
+  $('hCoins').textContent = STATE.coins;
+  $('bizName').textContent = info.name;
+  $('bizFacts').textContent =
+    'Rent ' + rupees(info.weeklyFixed) + ' a week · each one costs you ' + rupees(info.unitCost)
+    + (info.perishable ? ' · anything unsold is thrown away' : ' · unsold stock keeps for next week');
+  $('stockLabel').textContent = info.perishable ? 'How many to make' : 'How many to buy';
+  refreshHint();
+  show('playCard');
+}
+
+function paintResult(d) {
+  const r = d.result;
+  $('eventLine').textContent = r.event;
+  $('soldLine').textContent = 'You sold ' + r.sold + ' of the ' + (r.sold + r.leftover) + ' you had'
+    + (r.stockOut ? ' — and ran out while people still wanted more.' : '.');
+
+  const rows = [
+    ['Money in', r.revenue, ''],
+    ['What you sold cost you', -r.cogs, ''],
+  ];
+  if (r.wasted) rows.push(['Thrown away (' + r.spoiled + ')', -r.wasted, 'waste']);
+  rows.push(['Rent', -r.fixed, '']);
+
+  $('ledger').innerHTML = rows.map(function (x) {
+      return '<tr class="' + x[2] + '"><td>' + x[0] + '</td><td>' + rupees(x[1]) + '</td></tr>';
+    }).join('')
+    + '<tr class="total"><td>Profit</td><td class="' + (r.profit < 0 ? 'neg' : 'pos') + '">'
+    + rupees(r.profit) + '</td></tr>';
+
+  $('cashLine').textContent = 'Cash ' + rupees(r.cashBefore) + ' → ' + rupees(r.cashAfter)
+    + '   ·   +' + d.coins + ' coins';
+  $('why').classList.add('hidden');
+  $('why').textContent = '';
+  $('whyBtn').disabled = false;
+  $('next').textContent = d.over ? 'See how you did' : 'Next week';
+  show('resultCard');
+}
+
+function paintEnd(d) {
+  const broke = d.ending === 'bankrupt';
+  $('endTitle').textContent = broke ? 'You ran out of money' : 'Eight weeks done';
+  $('endLine').textContent = broke
+    ? 'It happens to real shops too — usually by buying more stock than they can sell.'
+    : 'You kept it running. Here is how it went.';
+  const diff = d.run.cash - 5000;
+  $('endTable').innerHTML =
+      '<tr><td>Started with</td><td>' + rupees(5000) + '</td></tr>'
+    + '<tr><td>Finished with</td><td>' + rupees(d.run.cash) + '</td></tr>'
+    + '<tr class="total"><td>Difference</td><td class="' + (diff < 0 ? 'neg' : 'pos') + '">'
+    + rupees(diff) + '</td></tr>';
+  show('endCard');
+}
+
+async function start() {
+  const d = await api('/api/businesses');
+  $('pick').innerHTML = d.choices.map(function (c) {
+    return '<button data-key="' + c.key + '">'
+      + '<span><strong>' + c.name + '</strong><br><small>Rent ' + rupees(c.rent)
+      + '/week · costs ' + rupees(c.unitCost) + ' each</small></span>'
+      + '<small>' + (c.perishable ? 'spoils' : 'keeps') + '</small></button>';
+  }).join('');
+  for (const b of $('pick').querySelectorAll('button')) {
+    b.onclick = async () => {
+      const r = await api('/api/run', { business: b.dataset.key });
+      STATE.run = r.run; STATE.info = r.info;
+      paintPlay();
+    };
+  }
+  show('pickCard');
+}
+
+$('price').oninput = refreshHint;
+
+$('run').onclick = async () => {
+  $('run').disabled = true;
+  try {
+    const d = await api('/api/week', {
+      price: Number($('price').value), stock: Number($('stock').value),
+    });
+    if (d.error) { $('hint').textContent = d.error; return; }
+    STATE.run = d.run; STATE.last = d; STATE.coins = d.points;
+    paintResult(d);
+  } finally { $('run').disabled = false; }
 };
+
+$('next').onclick = () => (STATE.last.over ? paintEnd(STATE.last) : paintPlay());
+
+$('whyBtn').onclick = async () => {
+  const d = STATE.last, r = d.result;
+  $('whyBtn').disabled = true;
+  $('why').classList.remove('hidden');
+  $('why').textContent = 'Thinking…';
+  const q = 'I run a ' + STATE.info.name + '. Rent is ' + STATE.info.weeklyFixed
+    + ' a week and each unit costs me ' + r.unitCost + '. This week: ' + r.event
+    + '. I priced at ' + $('price').value + ', bought ' + (r.sold + r.leftover)
+    + ', sold ' + r.sold + ', threw away ' + r.spoiled + ', and my profit was ' + r.profit
+    + '. In two or three short sentences, explain to a school student why the profit came out'
+    + ' that way, and give one thing to try next week.';
+  const a = await api('/api/tutor', { question: q });
+  $('why').textContent = a.answer || a.error || 'The tutor is busy — try again in a moment.';
+};
+
+$('again').onclick = start;
+
+/* Resume whatever was going on, so closing the tab does not lose the game. */
+(async () => {
+  const me = await api('/api/me');
+  const cur = await api('/api/run');
+  STATE.coins = me.points || 0;
+  if (cur.run && !cur.run.over) {
+    STATE.run = cur.run; STATE.info = cur.info;
+    paintPlay();
+  } else {
+    start();
+  }
+})();
 </script>
 </body>
 </html>

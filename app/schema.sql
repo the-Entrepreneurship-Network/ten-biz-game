@@ -26,3 +26,17 @@ CREATE TABLE IF NOT EXISTS event (
 );
 
 CREATE INDEX IF NOT EXISTS event_by_student ON event(student_id, created_at);
+
+-- One run of the game per student. The week's weather is derived from the run
+-- id, so nothing random needs storing and a refresh cannot reroll it.
+CREATE TABLE IF NOT EXISTS run (
+    id         TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL REFERENCES student(id),
+    business   TEXT NOT NULL,
+    week       INTEGER NOT NULL DEFAULT 1,
+    cash       INTEGER NOT NULL,
+    over       INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS run_by_student ON run(student_id, created_at);
