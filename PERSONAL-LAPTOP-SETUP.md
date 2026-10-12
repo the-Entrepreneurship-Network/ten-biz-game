@@ -172,3 +172,44 @@ on the wrong hardware it is hours of pain for no gain.
 - The deployed URL from A9
 - Whether A10's two checks passed
 - Any error, pasted in full — the whole message, not a summary
+
+---
+
+# Picking this up on a different machine
+
+Nothing here lives on a laptop. The code is on GitHub, the game runs on
+Cloudflare, and the students' data is in Cloudflare D1. A laptop is only ever
+a place to edit from — lose it, replace it, and nothing is lost.
+
+So on a new machine, or in six months:
+
+```bash
+git clone https://github.com/the-Entrepreneurship-Network/ten-biz-game.git
+cd ten-biz-game/app
+npm install
+npx wrangler login          # the same Cloudflare account
+npm run deploy              # done
+```
+
+**Do NOT run `wrangler d1 create` again.** That makes a *second*, empty
+database and silently abandons the one with every student's progress in it.
+The id of the real one is already in `app/wrangler.toml`, committed, and that
+is exactly why this works — `npm run deploy` connects to the same database the
+old laptop used.
+
+The same goes for `npm run db:init`: the tables already exist. It is written
+with `CREATE TABLE IF NOT EXISTS` so re-running it is harmless, but it is not
+something you need to do.
+
+## What is actually permanent, and what is not
+
+| | Where it lives | Lost if the laptop dies? |
+|---|---|---|
+| Code | GitHub | No |
+| The running game | Cloudflare Workers | No |
+| Student progress | Cloudflare D1 | No |
+| The database id | `app/wrangler.toml`, in git | No |
+| node_modules, wrangler login | the laptop | Yes — and both take one command to redo |
+
+The only thing worth keeping safe off the laptop is the **Cloudflare account
+login**. Everything else is recoverable from this repository.
