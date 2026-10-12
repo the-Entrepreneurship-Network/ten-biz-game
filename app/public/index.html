@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Business Playground</title>
+<style>
+  :root { --ink:#15202b; --bg:#fbf9f4; --card:#fff; --line:#e4ded0; --accent:#1f6f4a; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --ink:#eceff3; --bg:#12151a; --card:#1a1f26; --line:#2b323c; --accent:#4ec08a; } }
+  * { box-sizing:border-box }
+  body { margin:0; padding:24px 16px; background:var(--bg); color:var(--ink);
+         font:16px/1.55 system-ui, sans-serif }
+  main { max-width:640px; margin:0 auto; display:flex; flex-direction:column; gap:16px }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px }
+  h1 { font-size:1.4rem; margin:0 0 4px }
+  .stat { display:flex; gap:24px; font-variant-numeric:tabular-nums }
+  .stat b { font-size:1.6rem; display:block }
+  button { background:var(--accent); color:#fff; border:0; border-radius:8px;
+           padding:10px 14px; font:inherit; cursor:pointer }
+  input { width:100%; padding:10px; border:1px solid var(--line); border-radius:8px;
+          background:var(--bg); color:var(--ink); font:inherit }
+  #answer { white-space:pre-wrap; margin-top:12px }
+  .muted { color:#8b8577; font-size:.85rem }
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <h1>Business Playground</h1>
+    <p class="muted">Scaffold — the game loop is not designed yet.</p>
+    <div class="stat"><span>Points <b id="points">–</b></span><span>Level <b id="level">–</b></span></div>
+    <p><button id="earn">Finish a lesson (+10)</button></p>
+  </div>
+  <div class="card">
+    <label for="q"><strong>Ask the tutor</strong></label>
+    <p><input id="q" placeholder="What is profit?"></p>
+    <button id="ask">Ask</button>
+    <div id="answer"></div>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const show = (d) => { $('points').textContent = d.points; $('level').textContent = d.level; };
+
+const api = async (path, body) => (await fetch(path, body ? {
+  method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+} : {})).json();
+
+api('/api/me').then(show);
+$('earn').onclick = async () => show(await api('/api/event', { kind: 'lesson_done' }));
+$('ask').onclick = async () => {
+  $('answer').textContent = 'Thinking…';
+  const r = await api('/api/tutor', { question: $('q').value });
+  $('answer').textContent = r.answer || r.error || 'No answer.';
+};
+</script>
+</body>
+</html>

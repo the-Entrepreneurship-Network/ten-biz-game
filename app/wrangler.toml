@@ -1,0 +1,17 @@
+name = "ten-biz-game"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+# Static files are served by the same Worker — one deploy, not Pages + Functions.
+[assets]
+directory = "./public"
+
+# Free tier. Fill database_id after: npx wrangler d1 create ten-biz-game
+[[d1_databases]]
+binding       = "DB"
+database_name = "ten-biz-game"
+database_id   = "PASTE_AFTER_d1_create"
+
+# Workers AI — free daily allowance, no API key, no GPU.
+[ai]
+binding = "AI"

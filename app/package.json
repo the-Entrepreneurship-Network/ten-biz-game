@@ -1,0 +1,14 @@
+{
+  "name": "ten-biz-game",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/score.test.mjs test/sim.test.mjs",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:init": "wrangler d1 execute ten-biz-game --remote --file=./schema.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^3"
+  },
+  "type": "module"
+}
