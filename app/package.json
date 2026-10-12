@@ -8,7 +8,7 @@
     "db:init": "wrangler d1 execute ten-biz-game --remote --file=./schema.sql"
   },
   "devDependencies": {
-    "wrangler": "^3"
+    "wrangler": "^4"
   },
   "type": "module"
 }
