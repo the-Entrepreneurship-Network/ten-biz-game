@@ -10,7 +10,7 @@ directory = "./public"
 [[d1_databases]]
 binding       = "DB"
 database_name = "ten-biz-game"
-database_id   = "PASTE_AFTER_d1_create"
+database_id   = "658d9b22-0abe-4050-b8f3-f45f68e4fffc"
 
 # Workers AI — free daily allowance, no API key, no GPU.
 [ai]
