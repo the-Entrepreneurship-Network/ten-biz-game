@@ -18,6 +18,9 @@ const SYSTEM = [
     'If the student is wrong, say what is wrong and give one hint. Do not give the full answer.',
 ].join(' ');
 
+/** Extension-less paths the site hands out, and the file each one serves. */
+export const PAGES = { '/play': '/play.html' };
+
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
     status, headers: { 'content-type': 'application/json; charset=utf-8' },
 });
@@ -55,7 +58,15 @@ export default {
         const url = new URL(request.url);
         const path = url.pathname;
 
-        if (!path.startsWith('/api/')) return env.ASSETS.fetch(request);
+        if (!path.startsWith('/api/')) {
+            // Clean URLs. `/play` is the link that ends up in a slide or on a
+            // whiteboard, so it should not carry a file extension. Static
+            // asset handling may strip `.html` on its own depending on how it
+            // is configured; mapping it here means the link works regardless.
+            const page = PAGES[path];
+            if (page) return env.ASSETS.fetch(new Request(new URL(page, url), request));
+            return env.ASSETS.fetch(request);
+        }
 
         // Every API call belongs to a student; the first call mints the id.
         let id = studentId(request);

@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Play — TEN Business Playground</title>
+<meta name="description" content="Run a tea stall, stationery shop or tiffin service for eight weeks and find out what actually makes money.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Mukta:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="/"><span class="mark">₹</span> Business Playground</a>
+    <nav><a href="/#schools">For schools</a></nav>
+  </div>
+</header>
+
+<main class="game">
+
+  <header>
+    <h1 style="font-size:1.9rem">Eight weeks. One shop.</h1>
+    <p class="dim" style="margin-top:8px">Nothing here is real money. That is the point — losing it is how you learn.</p>
+  </header>
+
+  <section id="pickCard" class="card hidden">
+    <h2 style="font-size:1.3rem">Choose your business</h2>
+    <p class="dim" style="margin:6px 0 0; font-size:.95rem">You keep it for the whole game. Each one behaves differently.</p>
+    <div class="pick" id="pick" style="margin-top:16px"></div>
+  </section>
+
+  <section id="playCard" class="hidden">
+    <div class="hud">
+      <div><span>Week</span><b id="hWeek">1</b></div>
+      <div><span>Cash</span><b id="hCash">0</b></div>
+      <div><span>Coins</span><b id="hCoins">0</b></div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h2 id="bizName" style="font-size:1.3rem">Tea stall</h2>
+      <p class="dim" id="bizFacts" style="margin:6px 0 0; font-size:.95rem"></p>
+
+      <div class="row" style="margin-top:18px">
+        <div>
+          <label for="price">Price you charge</label>
+          <input id="price" type="number" min="0" step="1" value="10" inputmode="numeric">
+        </div>
+        <div>
+          <label for="stock" id="stockLabel">How many to buy</label>
+          <input id="stock" type="number" min="0" step="1" value="100" inputmode="numeric">
+        </div>
+      </div>
+
+      <p class="hint" id="hint"></p>
+
+      <p style="margin:18px 0 0"><button id="run" class="btn btn-accent">Run the week</button></p>
+    </div>
+  </section>
+
+  <section id="resultCard" class="card hidden">
+    <h2 id="eventLine" style="font-size:1.3rem">A normal week</h2>
+    <p class="dim" id="soldLine" style="margin:6px 0 14px; font-size:.95rem"></p>
+    <table id="ledger"></table>
+    <p class="dim num" id="cashLine" style="margin-top:12px; font-size:.95rem"></p>
+    <div id="why" class="why hidden"></div>
+    <p style="margin:18px 0 0; display:flex; gap:10px; flex-wrap:wrap">
+      <button id="whyBtn" class="btn btn-ghost">Why did that happen?</button>
+      <button id="next" class="btn">Next week</button>
+    </p>
+  </section>
+
+  <section id="endCard" class="card hidden">
+    <h2 id="endTitle" style="font-size:1.3rem">Eight weeks done</h2>
+    <p class="dim" id="endLine" style="margin:6px 0 14px; font-size:.95rem"></p>
+    <table id="endTable"></table>
+    <p style="margin:18px 0 0"><button id="again" class="btn btn-accent">Play again</button></p>
+  </section>
+
+  <footer>A teacher can see how a whole class did. <a href="/#schools">For schools →</a></footer>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const rupees = (n) => (n < 0 ? '-₹' : '₹') + Math.abs(Math.round(n)).toLocaleString('en-IN');
+const show = (id) => {
+  for (const el of document.querySelectorAll('main > section')) el.classList.add('hidden');
+  $(id).classList.remove('hidden');
+};
+
+const api = async (path, body) => (await fetch(path, body ? {
+  method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+} : {})).json();
+
+let STATE = { run: null, info: null, last: null, coins: 0 };
+
+/* Break-even, recalculated as the student types. This line is level four of
+   the curriculum taught without a lesson: move the price, watch how many you
+   must sell just to cover the rent. */
+function refreshHint() {
+  const info = STATE.info; if (!info) return;
+  const price = Number($('price').value);
+  const margin = price - info.unitCost;
+  const el = $('hint');
+  if (!(margin > 0)) {
+    el.innerHTML = 'At <b>' + rupees(price || 0) + '</b> you earn nothing on each sale — it costs you '
+                 + rupees(info.unitCost) + '. You cannot cover the rent at this price.';
+    return;
+  }
+  el.innerHTML = 'At <b>' + rupees(price) + '</b> you keep <b>' + rupees(margin)
+               + '</b> per sale, so you must sell <b>' + Math.ceil(info.weeklyFixed / margin)
+               + '</b> just to cover the ' + rupees(info.weeklyFixed) + ' rent.';
+}
+
+function paintPlay() {
+  const run = STATE.run, info = STATE.info;
+  $('hWeek').textContent = run.week;
+  $('hCash').textContent = rupees(run.cash);
+  $('hCoins').textContent = STATE.coins;
+  $('bizName').textContent = info.name;
+  $('bizFacts').textContent =
+    'Rent ' + rupees(info.weeklyFixed) + ' a week · each one costs you ' + rupees(info.unitCost)
+    + (info.perishable ? ' · anything unsold is thrown away' : ' · unsold stock keeps for next week');
+  $('stockLabel').textContent = info.perishable ? 'How many to make' : 'How many to buy';
+  refreshHint();
+  show('playCard');
+}
+
+function paintResult(d) {
+  const r = d.result;
+  $('eventLine').textContent = r.event;
+  $('soldLine').textContent = 'You sold ' + r.sold + ' of the ' + (r.sold + r.leftover) + ' you had'
+    + (r.stockOut ? ' — and ran out while people still wanted more.' : '.');
+
+  const rows = [
+    ['Money in', r.revenue, ''],
+    ['What you sold cost you', -r.cogs, ''],
+  ];
+  if (r.wasted) rows.push(['Thrown away (' + r.spoiled + ')', -r.wasted, 'waste']);
+  rows.push(['Rent', -r.fixed, '']);
+
+  $('ledger').innerHTML = rows.map(function (x) {
+      return '<tr class="' + x[2] + '"><td>' + x[0] + '</td><td>' + rupees(x[1]) + '</td></tr>';
+    }).join('')
+    + '<tr class="total"><td>Profit</td><td class="' + (r.profit < 0 ? 'neg' : 'pos') + '">'
+    + rupees(r.profit) + '</td></tr>';
+
+  $('cashLine').textContent = 'Cash ' + rupees(r.cashBefore) + ' → ' + rupees(r.cashAfter)
+    + '   ·   +' + d.coins + ' coins';
+  $('why').classList.add('hidden');
+  $('why').textContent = '';
+  $('whyBtn').disabled = false;
+  $('next').textContent = d.over ? 'See how you did' : 'Next week';
+  show('resultCard');
+}
+
+function paintEnd(d) {
+  const broke = d.ending === 'bankrupt';
+  $('endTitle').textContent = broke ? 'You ran out of money' : 'Eight weeks done';
+  $('endLine').textContent = broke
+    ? 'It happens to real shops too — usually by buying more stock than they can sell.'
+    : 'You kept it running. Here is how it went.';
+  const diff = d.run.cash - 5000;
+  $('endTable').innerHTML =
+      '<tr><td>Started with</td><td>' + rupees(5000) + '</td></tr>'
+    + '<tr><td>Finished with</td><td>' + rupees(d.run.cash) + '</td></tr>'
+    + '<tr class="total"><td>Difference</td><td class="' + (diff < 0 ? 'neg' : 'pos') + '">'
+    + rupees(diff) + '</td></tr>';
+  show('endCard');
+}
+
+async function start() {
+  const d = await api('/api/businesses');
+  $('pick').innerHTML = d.choices.map(function (c) {
+    return '<button data-key="' + c.key + '">'
+      + '<span><strong>' + c.name + '</strong><br><small>Rent ' + rupees(c.rent)
+      + '/week · costs ' + rupees(c.unitCost) + ' each</small></span>'
+      + '<small>' + (c.perishable ? 'spoils' : 'keeps') + '</small></button>';
+  }).join('');
+  for (const b of $('pick').querySelectorAll('button')) {
+    b.onclick = async () => {
+      const r = await api('/api/run', { business: b.dataset.key });
+      STATE.run = r.run; STATE.info = r.info;
+      paintPlay();
+    };
+  }
+  show('pickCard');
+}
+
+$('price').oninput = refreshHint;
+
+$('run').onclick = async () => {
+  $('run').disabled = true;
+  try {
+    const d = await api('/api/week', {
+      price: Number($('price').value), stock: Number($('stock').value),
+    });
+    if (d.error) { $('hint').textContent = d.error; return; }
+    STATE.run = d.run; STATE.last = d; STATE.coins = d.points;
+    paintResult(d);
+  } finally { $('run').disabled = false; }
+};
+
+$('next').onclick = () => (STATE.last.over ? paintEnd(STATE.last) : paintPlay());
+
+$('whyBtn').onclick = async () => {
+  const d = STATE.last, r = d.result;
+  $('whyBtn').disabled = true;
+  $('why').classList.remove('hidden');
+  $('why').textContent = 'Thinking…';
+  const q = 'I run a ' + STATE.info.name + '. Rent is ' + STATE.info.weeklyFixed
+    + ' a week and each unit costs me ' + r.unitCost + '. This week: ' + r.event
+    + '. I priced at ' + $('price').value + ', bought ' + (r.sold + r.leftover)
+    + ', sold ' + r.sold + ', threw away ' + r.spoiled + ', and my profit was ' + r.profit
+    + '. In two or three short sentences, explain to a school student why the profit came out'
+    + ' that way, and give one thing to try next week.';
+  const a = await api('/api/tutor', { question: q });
+  $('why').textContent = a.answer || a.error || 'The tutor is busy — try again in a moment.';
+};
+
+$('again').onclick = start;
+
+/* Resume whatever was going on, so closing the tab does not lose the game. */
+(async () => {
+  const me = await api('/api/me');
+  const cur = await api('/api/run');
+  STATE.coins = me.points || 0;
+  if (cur.run && !cur.run.over) {
+    STATE.run = cur.run; STATE.info = cur.info;
+    paintPlay();
+  } else {
+    start();
+  }
+})();
+</script>
+</body>
+</html>

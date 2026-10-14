@@ -3,304 +3,344 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Business Playground</title>
+<title>TEN Business Playground</title>
+<meta name="description" content="Students run a tea stall, stationery shop or tiffin service for eight weeks. They learn pricing, cash flow and break-even by making the decisions, not memorising the words.">
+<meta property="og:title" content="TEN Business Playground">
+<meta property="og:description" content="Your students run a shop for eight weeks. They learn pricing and cash flow by getting it wrong, cheaply.">
+<meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600&display=swap">
-<style>
-  :root {
-    --ink:#1d2b24; --dim:#5f7268; --bg:#f4f1e8; --card:#fffdf7;
-    --line:#ded6c2; --accent:#0f7b52; --warm:#c4601f; --bad:#b03a2e;
-    --shadow: 0 1px 0 #e6dfcd, 0 10px 24px -18px rgba(29,43,36,.5);
-  }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-    --ink:#edf2ee; --dim:#9aae9f; --bg:#10140f; --card:#191f19;
-    --line:#2b332b; --accent:#4bbd88; --warm:#e6935a; --bad:#e9705f;
-    --shadow: 0 1px 0 #222a22, 0 10px 24px -18px #000;
-  }}
-  :root[data-theme="dark"] {
-    --ink:#edf2ee; --dim:#9aae9f; --bg:#10140f; --card:#191f19;
-    --line:#2b332b; --accent:#4bbd88; --warm:#e6935a; --bad:#e9705f;
-  }
-  * { box-sizing:border-box }
-  body {
-    margin:0; padding:24px 16px 64px; background:var(--bg); color:var(--ink);
-    font:16px/1.55 Inter, system-ui, sans-serif; -webkit-font-smoothing:antialiased;
-  }
-  main { max-width:620px; margin:0 auto; display:flex; flex-direction:column; gap:18px }
-  h1, h2 { font-family:'Bricolage Grotesque', Inter, sans-serif; font-weight:800; }
-  h1 { font-size:1.75rem; margin:0; letter-spacing:-.02em; text-wrap:balance }
-  h2 { font-size:1.2rem; margin:0 0 2px; letter-spacing:-.01em; text-wrap:balance }
-  .sub { color:var(--dim); font-size:.92rem; margin:2px 0 0 }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:14px;
-          padding:18px; box-shadow:var(--shadow) }
-
-  .hud { display:flex; gap:10px; flex-wrap:wrap }
-  .hud div { flex:1 1 0; min-width:92px; background:var(--card); border:1px solid var(--line);
-             border-radius:12px; padding:10px 12px }
-  .hud span { display:block; font-size:.68rem; letter-spacing:.09em; text-transform:uppercase; color:var(--dim) }
-  .hud b { font-family:'Bricolage Grotesque', sans-serif; font-size:1.4rem; font-variant-numeric:tabular-nums }
-
-  label { display:block; font-weight:600; font-size:.9rem; margin:0 0 6px }
-  .row { display:flex; gap:12px; flex-wrap:wrap }
-  .row > div { flex:1 1 160px }
-  input[type=number] {
-    width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:10px;
-    background:var(--bg); color:var(--ink); font:600 1.1rem Inter, sans-serif;
-    font-variant-numeric:tabular-nums;
-  }
-  input:focus-visible, button:focus-visible { outline:2px solid var(--accent); outline-offset:2px }
-
-  button {
-    background:var(--accent); color:#fff; border:0; border-radius:10px;
-    padding:12px 18px; font:600 1rem Inter, sans-serif; cursor:pointer;
-  }
-  button:hover { filter:brightness(1.07) }
-  button.ghost { background:transparent; color:var(--ink); border:1px solid var(--line) }
-  button[disabled] { opacity:.5; cursor:not-allowed }
-
-  .hint { margin:12px 0 0; padding:10px 12px; border-left:3px solid var(--warm);
-          background:color-mix(in srgb, var(--warm) 9%, transparent);
-          border-radius:0 8px 8px 0; font-size:.92rem }
-  .hint b { font-variant-numeric:tabular-nums }
-
-  .pick { display:grid; gap:10px }
-  .pick button { text-align:left; background:var(--card); color:var(--ink);
-                 border:1px solid var(--line); padding:14px 16px; display:flex;
-                 justify-content:space-between; align-items:baseline; gap:12px }
-  .pick button:hover { border-color:var(--accent) }
-  .pick small { color:var(--dim); font-weight:500; font-variant-numeric:tabular-nums }
-
-  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums }
-  td { padding:7px 0; border-bottom:1px solid var(--line) }
-  td:last-child { text-align:right; font-weight:600 }
-  tr.total td { border-bottom:0; border-top:2px solid var(--ink); padding-top:10px;
-                font-family:'Bricolage Grotesque',sans-serif; font-size:1.1rem }
-  .neg { color:var(--bad) } .pos { color:var(--accent) }
-  .waste td { color:var(--warm) }
-
-  .why { margin-top:14px; padding:14px; border-radius:10px;
-         background:color-mix(in srgb, var(--accent) 8%, transparent);
-         border:1px solid color-mix(in srgb, var(--accent) 25%, transparent); font-size:.95rem }
-  .hidden { display:none }
-  footer { text-align:center; color:var(--dim); font-size:.8rem; margin-top:8px }
-</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Mukta:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="/style.css">
 </head>
 <body>
+
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="/"><span class="mark">₹</span> Business Playground</a>
+    <nav>
+      <a href="#how" class="hide-sm">How it works</a>
+      <a href="#learn" class="hide-sm">What they learn</a>
+      <a href="#schools">For schools</a>
+      <a href="/play" class="btn btn-accent" style="padding:9px 18px; font-size:.94rem">Play free</a>
+    </nav>
+  </div>
+</header>
+
 <main>
 
-  <header>
-    <h1>Business Playground</h1>
-    <p class="sub">Run a real shop for eight weeks. Find out what actually makes money.</p>
-  </header>
+<!-- ── Hero ─────────────────────────────────────────────────────────── -->
+<section class="hero">
+  <div class="wrap hero-grid">
 
-  <section id="pickCard" class="card hidden">
-    <h2>Choose your business</h2>
-    <p class="sub">You keep it for the whole game. Each one behaves differently.</p>
-    <div class="pick" id="pick"></div>
-  </section>
-
-  <section id="playCard" class="hidden">
-    <div class="hud">
-      <div><span>Week</span><b id="hWeek">1</b></div>
-      <div><span>Cash</span><b id="hCash">0</b></div>
-      <div><span>Coins</span><b id="hCoins">0</b></div>
+    <div>
+      <p class="eyebrow">For schools · Ages 13–17</p>
+      <h1>Your students run a shop for eight weeks.</h1>
+      <p class="lede">
+        A student can define break-even perfectly and still have no idea what to
+        charge for a cup of tea. This closes that gap — by letting them get it
+        wrong, cheaply, and showing them exactly why.
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-accent" href="/play">Play a week — free, no signup</a>
+        <a class="btn btn-ghost" href="#schools">For schools</a>
+      </div>
+      <p class="hero-note">Takes three minutes. Nothing to install, nothing to sign up for.</p>
     </div>
 
-    <div class="card" style="margin-top:14px">
-      <h2 id="bizName">Tea stall</h2>
-      <p class="sub" id="bizFacts"></p>
-
-      <div class="row" style="margin-top:14px">
-        <div>
-          <label for="price">Price you charge</label>
-          <input id="price" type="number" min="0" step="1" value="10" inputmode="numeric">
-        </div>
-        <div>
-          <label for="stock" id="stockLabel">How many to buy</label>
-          <input id="stock" type="number" min="0" step="1" value="100" inputmode="numeric">
-        </div>
+    <!--
+      The hero is not a screenshot. It runs the same arithmetic the game runs,
+      so the one idea the product teaches is provable before anyone clicks.
+    -->
+    <div class="demo">
+      <div class="demo-head">
+        <h3>Tea stall · one week</h3>
+        <span class="demo-tag" id="demoTag">Try moving it</span>
       </div>
 
-      <p class="hint" id="hint"></p>
+      <div class="slider-wrap">
+        <label for="demoPrice">
+          <span>Price per cup</span>
+          <output id="demoPriceOut" for="demoPrice">₹10</output>
+        </label>
+        <input type="range" id="demoPrice" min="5" max="18" step="1" value="10">
+      </div>
 
-      <p style="margin:16px 0 0"><button id="run">Run the week</button></p>
+      <div class="demo-row">
+        <span class="k">People who want one at that price</span>
+        <span class="v" id="demoDemand">120</span>
+      </div>
+      <div class="demo-row">
+        <span class="k">Cups you must sell to cover the ₹400 rent</span>
+        <span class="v" id="demoBreakEven">67</span>
+      </div>
+
+      <div class="verdict" id="demoVerdict"></div>
     </div>
-  </section>
 
-  <section id="resultCard" class="card hidden">
-    <h2 id="eventLine">A normal week</h2>
-    <p class="sub" id="soldLine"></p>
-    <table id="ledger"></table>
-    <p class="sub" id="cashLine" style="margin-top:10px"></p>
-    <div id="why" class="why hidden"></div>
-    <p style="margin:16px 0 0; display:flex; gap:10px; flex-wrap:wrap">
-      <button id="whyBtn" class="ghost">Why?</button>
-      <button id="next">Next week</button>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ── How it works ─────────────────────────────────────────────────── -->
+<section id="how">
+  <div class="wrap">
+    <p class="eyebrow">How it works</p>
+    <h2>One class period. No preparation.</h2>
+
+    <div class="grid grid-3">
+      <div class="step">
+        <div class="n">01</div>
+        <h3>They pick a business</h3>
+        <p>A tea stall, a stationery shop, or a tiffin service. Each one behaves
+           differently — one spoils if it goes unsold, one does not.</p>
+      </div>
+      <div class="step">
+        <div class="n">02</div>
+        <h3>They set a price and buy stock</h3>
+        <p>Every week, two decisions. Demand answers back. Rain, a festival, a
+           competitor opening next door — none of it is theirs to control.</p>
+      </div>
+      <div class="step">
+        <div class="n">03</div>
+        <h3>They find out why</h3>
+        <p>The ledger shows exactly where the money went. If they ask why, a
+           tutor explains it in two sentences — and gives one thing to try.</p>
+      </div>
+    </div>
+
+    <div class="split">
+      <div>
+        <h3>What the student does</h3>
+        <ul>
+          <li>Runs eight weeks in about three minutes</li>
+          <li>Starts with ₹5,000 and can lose all of it</li>
+          <li>Sees a live break-even figure while choosing a price</li>
+          <li>Earns coins for profit and for judging stock well</li>
+          <li>Cannot refresh to escape a bad week — the weather is fixed</li>
+        </ul>
+      </div>
+      <div>
+        <h3>What the teacher does</h3>
+        <ul>
+          <li>Creates a class and reads out a six-character code</li>
+          <li>Nothing to install, on any device with a browser</li>
+          <li>Sees who is on which week, and who is losing money</li>
+          <li>Sees the class pattern — "18 of 30 priced below cost"</li>
+          <li>Exports the results for their own records</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ── What they learn ──────────────────────────────────────────────── -->
+<section id="learn">
+  <div class="wrap">
+    <p class="eyebrow">What students learn</p>
+    <h2>Five things, none of them memorised.</h2>
+    <p class="lede">
+      Each one is learned by a decision going wrong, not by a definition going
+      into a notebook.
     </p>
-  </section>
 
-  <section id="endCard" class="card hidden">
-    <h2 id="endTitle">Eight weeks done</h2>
-    <p class="sub" id="endLine"></p>
-    <table id="endTable"></table>
-    <p style="margin:16px 0 0"><button id="again">Play again</button></p>
-  </section>
+    <div class="grid grid-2" style="margin-top:44px">
+      <div class="learn">
+        <h3>Price is not a guess</h3>
+        <p>Cut the price and more people want it — but you may now need to sell
+           more than exist. Raise it and you need fewer, but fewer want it.</p>
+      </div>
+      <div class="learn">
+        <h3>Break-even, felt rather than defined</h3>
+        <p>The number of units needed just to cover the rent updates while they
+           move the price. Nobody has to explain the formula.</p>
+      </div>
+      <div class="learn">
+        <h3>Profit is not cash</h3>
+        <p>Stock is paid for before anything sells. A student can post a profit
+           on paper and still run out of money — and does.</p>
+      </div>
+      <div class="learn">
+        <h3>Demand is not yours to control</h3>
+        <p>Rain halves the week. A festival doubles it. The lesson is planning
+           for a week you did not choose.</p>
+      </div>
+      <div class="learn">
+        <h3>Buying too much is how shops die</h3>
+        <p>Unsold tea is thrown away. Most students go bankrupt by over-buying,
+           once — and then never again.</p>
+      </div>
+      <div class="learn">
+        <h3>Failure costs nothing here</h3>
+        <p>Going broke takes thirty seconds and teaches more than a correct
+           answer on a worksheet. They can start again immediately.</p>
+      </div>
+    </div>
+  </div>
+</section>
 
-  <footer>Nothing here is real money. Learn by losing it.</footer>
+<!-- ── For schools ──────────────────────────────────────────────────── -->
+<section id="schools" class="band">
+  <div class="wrap">
+    <p class="eyebrow">For schools</p>
+    <h2>Set up in five minutes. Nothing to install.</h2>
+
+    <div class="split" style="margin-top:36px">
+      <div>
+        <h3>What you need</h3>
+        <ul>
+          <li>A browser. Any computer, tablet or phone</li>
+          <li>One teacher account for the school</li>
+          <li>No student email addresses — just a class code</li>
+          <li>No IT involvement, no software to approve</li>
+        </ul>
+      </div>
+      <div>
+        <h3>What it costs</h3>
+        <ul>
+          <li>Pricing on request, per school, per year</li>
+          <li>Unlimited classes and students within the school</li>
+          <li>A free trial class before you decide anything</li>
+          <li>Invoiced — no card, no online payment</li>
+        </ul>
+        <p style="margin-top:22px">
+          <a class="btn btn-accent" href="mailto:growth@entrepreneurshipnetwork.net?subject=Business%20Playground%20for%20our%20school">Ask about your school</a>
+        </p>
+      </div>
+    </div>
+
+    <!--
+      This is a selling point as much as a safeguard, so it is stated plainly
+      rather than buried in a policy page nobody opens.
+    -->
+    <div class="privacy">
+      <h3>We do not collect your students' personal information.</h3>
+      <p class="dim" style="margin-top:10px">
+        Students join with a class code and a first name. That is everything we
+        hold. There is no account to be breached and no profile to be sold.
+      </p>
+      <ul>
+        <li>No email address</li>
+        <li>No phone number</li>
+        <li>No date of birth</li>
+        <li>No photograph</li>
+        <li>No surname required</li>
+        <li>No advertising, ever</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ── About ────────────────────────────────────────────────────────── -->
+<section id="about">
+  <div class="wrap nar">
+    <p class="eyebrow">Who built this</p>
+    <h2>The Entrepreneurship Network</h2>
+    <p class="lede" style="max-width:none">
+      We already run internships and training for several hundred students. This
+      is the same thinking applied earlier — to the age where business is still
+      taught as a list of definitions to be recalled in an exam.
+    </p>
+    <p style="margin-top:28px">
+      <a class="btn btn-ghost" href="mailto:growth@entrepreneurshipnetwork.net">growth@entrepreneurshipnetwork.net</a>
+    </p>
+  </div>
+</section>
+
 </main>
 
+<footer class="site-foot">
+  <div class="wrap">
+    <div class="cols">
+      <div>
+        <p class="brand" style="margin-bottom:10px"><span class="mark">₹</span> Business Playground</p>
+        <p class="dim" style="font-size:.9rem">Business learning for school students, by The Entrepreneurship Network.</p>
+      </div>
+      <div>
+        <p style="font-weight:600; margin-bottom:6px">Product</p>
+        <a href="/play">Play a week</a>
+        <a href="#how">How it works</a>
+        <a href="#learn">What students learn</a>
+      </div>
+      <div>
+        <p style="font-weight:600; margin-bottom:6px">Schools</p>
+        <a href="#schools">Pricing and setup</a>
+        <a href="mailto:growth@entrepreneurshipnetwork.net">Talk to us</a>
+      </div>
+    </div>
+    <p class="fine">
+      © 2026 The Entrepreneurship Network. Students join with a class code and a
+      first name; we collect nothing else.
+    </p>
+  </div>
+</footer>
+
 <script>
-const $ = (id) => document.getElementById(id);
-const rupees = (n) => (n < 0 ? '-₹' : '₹') + Math.abs(Math.round(n)).toLocaleString('en-IN');
-const show = (id) => {
-  for (const el of document.querySelectorAll('main > section')) el.classList.add('hidden');
-  $(id).classList.remove('hidden');
-};
+/*
+ * The hero demo.
+ *
+ * These are the real tea-stall numbers from the simulation, and the same
+ * arithmetic — not an illustration. A visitor who moves the slider is seeing
+ * what the game would actually do, which is the only reason it earns the space.
+ *
+ * ponytail: duplicated from src/sim.js rather than imported, because the page
+ * is static and importing the module would mean a build step for nine lines of
+ * maths. test/site.test.mjs runs this function against the real simulation at
+ * every price on the slider, so the duplicate cannot drift in silence.
+ */
+var TEA = { refPrice: 10, unitCost: 4, baseDemand: 120, weeklyFixed: 400 };
 
-const api = async (path, body) => (await fetch(path, body ? {
-  method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
-} : {})).json();
-
-let STATE = { run: null, info: null, last: null, coins: 0 };
-
-/* Break-even, recalculated as the student types. This line is level four of
-   the curriculum taught without a lesson: move the price, watch how many you
-   must sell just to cover the rent. */
-function refreshHint() {
-  const info = STATE.info; if (!info) return;
-  const price = Number($('price').value);
-  const margin = price - info.unitCost;
-  const el = $('hint');
-  if (!(margin > 0)) {
-    el.innerHTML = 'At <b>' + rupees(price || 0) + '</b> you earn nothing on each sale — it costs you '
-                 + rupees(info.unitCost) + '. You cannot cover the rent at this price.';
-    return;
-  }
-  el.innerHTML = 'At <b>' + rupees(price) + '</b> you keep <b>' + rupees(margin)
-               + '</b> per sale, so you must sell <b>' + Math.ceil(info.weeklyFixed / margin)
-               + '</b> just to cover the ' + rupees(info.weeklyFixed) + ' rent.';
+function demoNumbers(price) {
+    var factor = Math.min(2.5, Math.max(0, 1 + ((TEA.refPrice - price) / TEA.refPrice) * 1.2));
+    var demand = Math.max(0, Math.round(TEA.baseDemand * factor));
+    var margin = price - TEA.unitCost;
+    // Below cost there is no number of cups that covers the rent.
+    var breakEven = margin > 0 ? Math.ceil(TEA.weeklyFixed / margin) : Infinity;
+    return { demand: demand, margin: margin, breakEven: breakEven, viable: breakEven <= demand };
 }
 
-function paintPlay() {
-  const run = STATE.run, info = STATE.info;
-  $('hWeek').textContent = run.week;
-  $('hCash').textContent = rupees(run.cash);
-  $('hCoins').textContent = STATE.coins;
-  $('bizName').textContent = info.name;
-  $('bizFacts').textContent =
-    'Rent ' + rupees(info.weeklyFixed) + ' a week · each one costs you ' + rupees(info.unitCost)
-    + (info.perishable ? ' · anything unsold is thrown away' : ' · unsold stock keeps for next week');
-  $('stockLabel').textContent = info.perishable ? 'How many to make' : 'How many to buy';
-  refreshHint();
-  show('playCard');
-}
+(function () {
+    var slider  = document.getElementById('demoPrice');
+    if (!slider) return;
+    var out     = document.getElementById('demoPriceOut');
+    var dem     = document.getElementById('demoDemand');
+    var be      = document.getElementById('demoBreakEven');
+    var verdict = document.getElementById('demoVerdict');
+    var tag     = document.getElementById('demoTag');
 
-function paintResult(d) {
-  const r = d.result;
-  $('eventLine').textContent = r.event;
-  $('soldLine').textContent = 'You sold ' + r.sold + ' of the ' + (r.sold + r.leftover) + ' you had'
-    + (r.stockOut ? ' — and ran out while people still wanted more.' : '.');
+    function paint() {
+        var price = Number(slider.value);
+        var n = demoNumbers(price);
 
-  const rows = [
-    ['Money in', r.revenue, ''],
-    ['What you sold cost you', -r.cogs, ''],
-  ];
-  if (r.wasted) rows.push(['Thrown away (' + r.spoiled + ')', -r.wasted, 'waste']);
-  rows.push(['Rent', -r.fixed, '']);
+        out.textContent = '₹' + price;
+        dem.textContent = n.demand;
+        be.textContent  = n.breakEven === Infinity ? '—' : n.breakEven;
 
-  $('ledger').innerHTML = rows.map(function (x) {
-      return '<tr class="' + x[2] + '"><td>' + x[0] + '</td><td>' + rupees(x[1]) + '</td></tr>';
-    }).join('')
-    + '<tr class="total"><td>Profit</td><td class="' + (r.profit < 0 ? 'neg' : 'pos') + '">'
-    + rupees(r.profit) + '</td></tr>';
+        verdict.classList.toggle('bad', !n.viable);
+        tag.textContent = n.viable ? 'This works' : 'This loses money';
+        tag.style.color = n.viable ? 'var(--profit)' : 'var(--loss)';
 
-  $('cashLine').textContent = 'Cash ' + rupees(r.cashBefore) + ' → ' + rupees(r.cashAfter)
-    + '   ·   +' + d.coins + ' coins';
-  $('why').classList.add('hidden');
-  $('why').textContent = '';
-  $('whyBtn').disabled = false;
-  $('next').textContent = d.over ? 'See how you did' : 'Next week';
-  show('resultCard');
-}
+        if (n.margin <= 0) {
+            verdict.innerHTML = 'Each cup costs you <b>₹4</b> to make, so at <b>₹' + price
+                + '</b> every sale loses money. No amount of selling fixes that.';
+        } else if (!n.viable) {
+            verdict.innerHTML = 'You keep <b>₹' + n.margin + '</b> a cup, so you need <b>'
+                + n.breakEven + '</b> sales to cover the rent — but only <b>' + n.demand
+                + '</b> people want one at that price.';
+        } else {
+            verdict.innerHTML = 'You keep <b>₹' + n.margin + '</b> a cup. Cover the rent at <b>'
+                + n.breakEven + '</b> sales, and up to <b>' + n.demand
+                + '</b> people want one — so the rest is profit.';
+        }
+    }
 
-function paintEnd(d) {
-  const broke = d.ending === 'bankrupt';
-  $('endTitle').textContent = broke ? 'You ran out of money' : 'Eight weeks done';
-  $('endLine').textContent = broke
-    ? 'It happens to real shops too — usually by buying more stock than they can sell.'
-    : 'You kept it running. Here is how it went.';
-  const diff = d.run.cash - 5000;
-  $('endTable').innerHTML =
-      '<tr><td>Started with</td><td>' + rupees(5000) + '</td></tr>'
-    + '<tr><td>Finished with</td><td>' + rupees(d.run.cash) + '</td></tr>'
-    + '<tr class="total"><td>Difference</td><td class="' + (diff < 0 ? 'neg' : 'pos') + '">'
-    + rupees(diff) + '</td></tr>';
-  show('endCard');
-}
-
-async function start() {
-  const d = await api('/api/businesses');
-  $('pick').innerHTML = d.choices.map(function (c) {
-    return '<button data-key="' + c.key + '">'
-      + '<span><strong>' + c.name + '</strong><br><small>Rent ' + rupees(c.rent)
-      + '/week · costs ' + rupees(c.unitCost) + ' each</small></span>'
-      + '<small>' + (c.perishable ? 'spoils' : 'keeps') + '</small></button>';
-  }).join('');
-  for (const b of $('pick').querySelectorAll('button')) {
-    b.onclick = async () => {
-      const r = await api('/api/run', { business: b.dataset.key });
-      STATE.run = r.run; STATE.info = r.info;
-      paintPlay();
-    };
-  }
-  show('pickCard');
-}
-
-$('price').oninput = refreshHint;
-
-$('run').onclick = async () => {
-  $('run').disabled = true;
-  try {
-    const d = await api('/api/week', {
-      price: Number($('price').value), stock: Number($('stock').value),
-    });
-    if (d.error) { $('hint').textContent = d.error; return; }
-    STATE.run = d.run; STATE.last = d; STATE.coins = d.points;
-    paintResult(d);
-  } finally { $('run').disabled = false; }
-};
-
-$('next').onclick = () => (STATE.last.over ? paintEnd(STATE.last) : paintPlay());
-
-$('whyBtn').onclick = async () => {
-  const d = STATE.last, r = d.result;
-  $('whyBtn').disabled = true;
-  $('why').classList.remove('hidden');
-  $('why').textContent = 'Thinking…';
-  const q = 'I run a ' + STATE.info.name + '. Rent is ' + STATE.info.weeklyFixed
-    + ' a week and each unit costs me ' + r.unitCost + '. This week: ' + r.event
-    + '. I priced at ' + $('price').value + ', bought ' + (r.sold + r.leftover)
-    + ', sold ' + r.sold + ', threw away ' + r.spoiled + ', and my profit was ' + r.profit
-    + '. In two or three short sentences, explain to a school student why the profit came out'
-    + ' that way, and give one thing to try next week.';
-  const a = await api('/api/tutor', { question: q });
-  $('why').textContent = a.answer || a.error || 'The tutor is busy — try again in a moment.';
-};
-
-$('again').onclick = start;
-
-/* Resume whatever was going on, so closing the tab does not lose the game. */
-(async () => {
-  const me = await api('/api/me');
-  const cur = await api('/api/run');
-  STATE.coins = me.points || 0;
-  if (cur.run && !cur.run.over) {
-    STATE.run = cur.run; STATE.info = cur.info;
-    paintPlay();
-  } else {
-    start();
-  }
+    slider.addEventListener('input', paint);
+    paint();
 })();
 </script>
 </body>
