@@ -210,14 +210,24 @@ $('whyBtn').onclick = async () => {
   $('whyBtn').disabled = true;
   $('why').classList.remove('hidden');
   $('why').textContent = 'Thinking…';
+  /* Everything below runs in a try. Without one, a failed request leaves
+     "Thinking…" on screen for good AND leaves this button disabled, so the
+     student cannot even ask again. A tutor that is unavailable should say so
+     and let them retry. */
   const q = 'I run a ' + STATE.info.name + '. Rent is ' + STATE.info.weeklyFixed
     + ' a week and each unit costs me ' + r.unitCost + '. This week: ' + r.event
     + '. I priced at ' + $('price').value + ', bought ' + (r.sold + r.leftover)
     + ', sold ' + r.sold + ', threw away ' + r.spoiled + ', and my profit was ' + r.profit
     + '. In two or three short sentences, explain to a school student why the profit came out'
     + ' that way, and give one thing to try next week.';
-  const a = await api('/api/tutor', { question: q });
-  $('why').textContent = a.answer || a.error || 'The tutor is busy — try again in a moment.';
+  try {
+    const a = await api('/api/tutor', { question: q });
+    $('why').textContent = a.answer || a.error || 'The tutor is busy — try again in a moment.';
+  } catch (err) {
+    $('why').textContent = 'Could not reach the tutor. Check your connection and try again.';
+  } finally {
+    $('whyBtn').disabled = false;
+  }
 };
 
 $('again').onclick = start;
