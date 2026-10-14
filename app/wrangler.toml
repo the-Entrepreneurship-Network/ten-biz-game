@@ -6,7 +6,12 @@ compatibility_date = "2026-01-01"
 [assets]
 directory = "./public"
 
-# Free tier. Fill database_id after: npx wrangler d1 create ten-biz-game
+# Free tier. The id below belongs to the database created on 13 Oct 2026.
+#
+# It is NOT a secret: it names the database, and reaching it still needs an
+# authenticated wrangler login. Committed deliberately so a fresh clone can
+# deploy straight away — running `wrangler d1 create` a second time makes a
+# SECOND, empty database and orphans this one with all the data in it.
 [[d1_databases]]
 binding       = "DB"
 database_name = "ten-biz-game"
