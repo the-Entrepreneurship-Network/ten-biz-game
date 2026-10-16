@@ -54,7 +54,28 @@ async function readBody(request) {
 }
 
 export default {
+    /**
+     * Anything that throws below reaches the browser as a 500 with an HTML
+     * body. The page does `(await fetch(...)).json()`, which then throws on
+     * that body inside a click handler that catches nothing — so the promise
+     * never settles and the screen sits on "Thinking…" forever.
+     *
+     * An API that still answers in JSON when it fails is the whole difference
+     * between a visible error and a frozen page.
+     */
     async fetch(request, env) {
+        try {
+            return await handle(request, env);
+        } catch (err) {
+            if (new URL(request.url).pathname.startsWith('/api/')) {
+                return json({ error: String(err?.message || err) }, 500);
+            }
+            throw err;
+        }
+    },
+};
+
+async function handle(request, env) {
         const url = new URL(request.url);
         const path = url.pathname;
 
@@ -199,16 +220,30 @@ export default {
             const question = String(body?.question ?? '').trim().slice(0, 500);
             if (!question) return reply({ error: 'send {"question":"..."}' }, 400);
 
-            const out = await env.AI.run(TUTOR_MODEL, {
-                messages: [
-                    { role: 'system', content: SYSTEM },
-                    { role: 'user', content: question },
-                ],
-                max_tokens: 300,
-            });
-            return reply({ answer: out.response ?? '' });
+            // Workers AI fails for ordinary reasons — the free daily allowance
+            // is spent, the model name is wrong, the request is rate limited.
+            // None of those should look to a student like the page is broken,
+            // and the model name is named here because that is the one a
+            // deploy can actually get wrong.
+            let out;
+            try {
+                out = await env.AI.run(TUTOR_MODEL, {
+                    messages: [
+                        { role: 'system', content: SYSTEM },
+                        { role: 'user', content: question },
+                    ],
+                    max_tokens: 300,
+                });
+            } catch (err) {
+                return reply({
+                    error: `The tutor could not answer (${TUTOR_MODEL}): ${err?.message || err}`,
+                }, 503);
+            }
+
+            const answer = String(out?.response ?? '').trim();
+            if (!answer) return reply({ error: 'The tutor sent back an empty answer. Try again.' }, 502);
+            return reply({ answer });
         }
 
         return reply({ error: 'not found' }, 404);
-    },
-};
+}
