@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teacher — TEN Business Playground</title>
+<meta name="description" content="Create a class, read out the join code, and see who is learning.">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Mukta:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="/"><span class="mark">₹</span> Business Playground</a>
+    <nav>
+      <a href="/play" class="hide-sm">The game</a>
+      <a href="#" id="signOut" class="hidden">Sign out</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ── Signed out ───────────────────────────────────────────────────── -->
+<main class="sheet" id="authView">
+  <h1 style="font-size:1.9rem">For teachers</h1>
+  <p class="dim" style="margin:10px 0 28px">
+    Create a class, read the code out loud, and see how everyone is doing.
+  </p>
+
+  <div class="tabs" role="tablist">
+    <button id="tabIn" role="tab" aria-selected="true">Sign in</button>
+    <button id="tabUp" role="tab" aria-selected="false">Create an account</button>
+  </div>
+
+  <div class="note bad hidden" id="authError"></div>
+
+  <form id="authForm" autocomplete="on">
+    <div class="field hidden" id="nameField">
+      <label for="fName">Your name</label>
+      <input type="text" id="fName" autocomplete="name">
+    </div>
+    <div class="field hidden" id="schoolField">
+      <label for="fSchool">School <span class="dim" style="font-weight:400">(optional)</span></label>
+      <input type="text" id="fSchool" autocomplete="organization">
+    </div>
+    <div class="field">
+      <label for="fEmail">Email</label>
+      <input type="email" id="fEmail" autocomplete="email" required>
+    </div>
+    <div class="field">
+      <label for="fPass">Password</label>
+      <input type="password" id="fPass" autocomplete="current-password" required>
+      <p class="help hidden" id="passHelp">At least 8 characters.</p>
+    </div>
+    <button class="btn btn-accent" id="authGo" style="width:100%">Sign in</button>
+  </form>
+
+  <p class="dim" style="margin-top:26px; font-size:.92rem">
+    We never ask your students for an email address, a phone number or a date
+    of birth. They join with a code and a first name.
+  </p>
+</main>
+
+<!-- ── Class list ───────────────────────────────────────────────────── -->
+<main class="board hidden" id="classesView">
+  <p class="eyebrow">Your classes</p>
+  <h1 id="hello" style="font-size:2rem">Welcome back</h1>
+
+  <form id="newClassForm" class="card" style="margin-top:28px; display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end">
+    <div class="field" style="flex:1 1 240px; margin:0">
+      <label for="className">Start a new class</label>
+      <input type="text" id="className" placeholder="Class 9B" required>
+    </div>
+    <button class="btn btn-accent" id="makeClass">Create class</button>
+  </form>
+
+  <div class="note bad hidden" id="classError" style="margin-top:18px"></div>
+  <div id="classList" style="margin-top:26px; display:grid; gap:14px"></div>
+</main>
+
+<!-- ── One class ────────────────────────────────────────────────────── -->
+<main class="board hidden" id="boardView">
+  <p><a href="#" id="backLink" class="dim" style="text-decoration:none; font-size:.95rem">← All classes</a></p>
+
+  <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:24px; flex-wrap:wrap; margin-top:12px">
+    <div>
+      <h1 id="boardName" style="font-size:2rem">Class</h1>
+      <p class="dim" style="margin-top:6px">Students join at <strong id="joinUrl"></strong></p>
+    </div>
+    <div style="text-align:right">
+      <p class="dim" style="font-size:.78rem; letter-spacing:.09em; text-transform:uppercase; font-weight:700">Join code</p>
+      <p class="code" id="boardCode">------</p>
+    </div>
+  </div>
+
+  <section style="padding:34px 0 0">
+    <h2 style="font-size:1.35rem">Before the lesson</h2>
+    <ul class="patterns" id="patterns"></ul>
+  </section>
+
+  <section style="padding:34px 0 0" id="attentionSection">
+    <h2 style="font-size:1.35rem">Worth a word</h2>
+    <p class="dim" style="margin-top:8px; font-size:.97rem">
+      Not the ones losing money — losing is the lesson. These are the ones who
+      have not understood cost, or are not really deciding.
+    </p>
+    <div id="attention" style="margin-top:16px; display:grid; gap:12px"></div>
+  </section>
+
+  <section style="padding:34px 0 0">
+    <div style="display:flex; justify-content:space-between; align-items:baseline; gap:16px; flex-wrap:wrap">
+      <h2 style="font-size:1.35rem">Everyone</h2>
+      <a class="btn btn-ghost" id="csvLink" style="padding:9px 18px; font-size:.92rem">Download CSV</a>
+    </div>
+    <table class="roster" id="roster"></table>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const show = (which) => {
+  for (const v of ['authView', 'classesView', 'boardView']) $(v).classList.toggle('hidden', v !== which);
+  $('signOut').classList.toggle('hidden', which === 'authView');
+};
+const api = async (path, body, method) => {
+  const res = await fetch(path, body
+    ? { method: method || 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }
+    : { method: method || 'GET' });
+  try { return await res.json(); } catch (_) { return { error: 'The server did not answer properly.' }; }
+};
+const fail = (el, message) => {
+  el.textContent = message;
+  el.classList.toggle('hidden', !message);
+};
+
+/* ── Sign in / create account ─────────────────────────────────────── */
+
+let mode = 'in';
+function setMode(next) {
+  mode = next;
+  const up = mode === 'up';
+  $('tabIn').setAttribute('aria-selected', String(!up));
+  $('tabUp').setAttribute('aria-selected', String(up));
+  for (const [el, hide] of [[$('nameField'), !up], [$('schoolField'), !up], [$('passHelp'), !up]]) {
+    el.classList.toggle('hidden', hide);
+  }
+  $('fName').required = up;
+  $('fPass').setAttribute('autocomplete', up ? 'new-password' : 'current-password');
+  $('authGo').textContent = up ? 'Create account' : 'Sign in';
+  fail($('authError'), '');
+}
+$('tabIn').onclick = () => setMode('in');
+$('tabUp').onclick = () => setMode('up');
+
+$('authForm').onsubmit = async (e) => {
+  e.preventDefault();
+  $('authGo').disabled = true;
+  fail($('authError'), '');
+  try {
+    const payload = mode === 'up'
+      ? { email: $('fEmail').value, password: $('fPass').value,
+          name: $('fName').value, school: $('fSchool').value }
+      : { email: $('fEmail').value, password: $('fPass').value };
+    const d = await api('/api/teacher/' + (mode === 'up' ? 'signup' : 'login'), payload);
+    if (d.error) { fail($('authError'), d.error); return; }
+    $('fPass').value = '';
+    await loadClasses();
+  } catch (_) {
+    fail($('authError'), 'Could not reach the server. Check your connection.');
+  } finally {
+    // However it ended, the button comes back — a failed sign-in that cannot
+    // be retried is worse than the failure itself.
+    $('authGo').disabled = false;
+  }
+};
+
+$('signOut').onclick = async (e) => {
+  e.preventDefault();
+  await api('/api/teacher/logout', {});
+  location.reload();
+};
+
+/* ── Classes ──────────────────────────────────────────────────────── */
+
+async function loadClasses() {
+  const d = await api('/api/teacher/me');
+  if (d.error) { show('authView'); return false; }
+
+  $('hello').textContent = d.teacher.name ? ('Welcome back, ' + d.teacher.name) : 'Your classes';
+  $('classList').innerHTML = (d.classes || []).map((c) =>
+    '<a class="card class-card" href="#' + c.id + '">'
+    + '<span><strong style="font-size:1.15rem">' + esc(c.name) + '</strong><br>'
+    + '<span class="dim" style="font-size:.94rem">' + c.students
+    + (c.students === 1 ? ' student' : ' students') + '</span></span>'
+    + '<span class="code" style="font-size:1.5rem">' + esc(c.code) + '</span></a>'
+  ).join('') || '<p class="empty">No classes yet. Create one above and read the code to your class.</p>';
+
+  show('classesView');
+  return true;
+}
+
+$('newClassForm').onsubmit = async (e) => {
+  e.preventDefault();
+  $('makeClass').disabled = true;
+  fail($('classError'), '');
+  try {
+    const d = await api('/api/class', { name: $('className').value });
+    if (d.error) { fail($('classError'), d.error); return; }
+    $('className').value = '';
+    await loadClasses();
+    location.hash = d.id;
+  } finally { $('makeClass').disabled = false; }
+};
+
+/* ── One class ────────────────────────────────────────────────────── */
+
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g,
+  (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+async function loadBoard(classId) {
+  const d = await api('/api/class?id=' + encodeURIComponent(classId));
+  if (d.error) { location.hash = ''; return; }
+
+  $('boardName').textContent = d.class.name;
+  $('boardCode').textContent = d.class.code;
+  $('joinUrl').textContent = location.host + '/play';
+  $('csvLink').href = '/api/class/csv?id=' + encodeURIComponent(classId);
+
+  $('patterns').innerHTML = (d.patterns.lines || [])
+    .map((l) => '<li>' + esc(l) + '</li>').join('')
+    || '<li>Nobody has played yet. Read the code out and they can start.</li>';
+
+  $('attention').innerHTML = (d.attention || []).map((s) =>
+    '<div class="card" style="padding:15px 17px"><strong>' + esc(s.name) + '</strong> — '
+    + '<span class="dim">' + esc(s.reasons.join(', ')) + '</span></div>'
+  ).join('') || '<p class="dim">Nobody needs chasing right now.</p>';
+
+  $('roster').innerHTML =
+    '<tr><th>Name</th><th>Weeks</th><th>Furthest</th><th>Below cost</th><th>Broke</th><th>Note</th></tr>'
+    + (d.students || []).map((s) =>
+        '<tr data-attention="' + (s.needsAttention ? 'yes' : 'no') + '">'
+        + '<td>' + esc(s.name) + '</td>'
+        + '<td>' + s.weeksPlayed + '</td>'
+        + '<td>' + s.lastWeek + '</td>'
+        + '<td>' + s.belowCost + '</td>'
+        + '<td>' + s.bankruptcies + '</td>'
+        + '<td class="reason">' + esc(s.reasons.join(', ')) + '</td></tr>'
+      ).join('')
+    || '<tr><td colspan="6" class="empty">No students have joined yet.</td></tr>';
+
+  show('boardView');
+}
+
+$('backLink').onclick = (e) => { e.preventDefault(); location.hash = ''; };
+
+/* The hash is the route: #<classId> opens that class, nothing opens the list.
+   No router, and the back button works for free. */
+async function route() {
+  const id = location.hash.replace(/^#/, '');
+  if (!await loadClasses()) return;
+  if (id) await loadBoard(id);
+}
+addEventListener('hashchange', route);
+
+setMode('in');
+route();
+</script>
+</body>
+</html>
