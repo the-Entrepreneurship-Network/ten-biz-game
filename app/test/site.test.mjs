@@ -7,6 +7,8 @@ import { PAGES } from '../src/index.js';
 
 const HOME = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
 const PLAY = readFileSync(new URL('../public/play.html', import.meta.url), 'utf8');
+const TEACHER = readFileSync(new URL('../public/teacher.html', import.meta.url), 'utf8');
+const CSS = readFileSync(new URL('../public/style.css', import.meta.url), 'utf8');
 
 /**
  * Lift a function out of a page by counting braces.
@@ -123,4 +125,75 @@ test('both pages load the shared stylesheet and set a title', () => {
         assert.ok(/<title>[^<]{5,}<\/title>/.test(page), `${name}.html has no real title`);
         assert.ok(page.includes('name="viewport"'), `${name}.html is not mobile-ready`);
     }
+});
+
+/* ── The teacher page ────────────────────────────────────────────────── */
+
+test('teacher.html has every element its script reaches for', () => {
+    const script = TEACHER.slice(TEACHER.indexOf('<script>'));
+    const ids = [...new Set([...script.matchAll(/\$\(['"]([\w-]+)['"]\)/g)].map((m) => m[1]))];
+    assert.ok(ids.length > 15, 'extracted suspiciously few ids — the regex is wrong');
+    for (const id of ids) {
+        assert.ok(new RegExp(`id="${id}"`).test(TEACHER), `teacher.html is missing #${id}`);
+    }
+});
+
+test('the teacher page is served, and the landing page sends schools to it', () => {
+    assert.equal(PAGES['/teacher'], '/teacher.html');
+    assert.ok(HOME.includes('href="/teacher"'), 'nothing on the landing page links to /teacher');
+});
+
+/**
+ * THE BUG THIS CATCHES.
+ *
+ * `.why` is the tutor's answer box on the game page and carries an accent
+ * background. The roster's note column was also class="why", so every row —
+ * including the six students with nothing to say about them — came out
+ * tinted, which reads as "the whole class needs a word". The page still
+ * rendered perfectly; only looking at it showed the problem.
+ */
+test('a class that paints a background is not reused as a table cell', () => {
+    const painted = [...CSS.matchAll(/^\.([\w-]+)\s*\{[^}]*background:/gm)].map((m) => m[1]);
+    assert.ok(painted.includes('why'), 'the tutor box no longer paints — update this test');
+
+    for (const cls of painted) {
+        assert.ok(!new RegExp(`<td class="${cls}"`).test(TEACHER),
+            `the roster reuses .${cls}, which has a background of its own`);
+    }
+});
+
+test('a student can join a class from the game page without leaving it', () => {
+    // The banner lives outside <main>, because the game script hides every
+    // `main > section` — inside, it would vanish on the first screen change.
+    const banner = PLAY.slice(PLAY.indexOf('id="joinBar"'));
+    assert.ok(PLAY.indexOf('id="joinBar"') < PLAY.indexOf('<main class="game">'),
+        'the join banner is inside <main> and the game will hide it');
+    assert.ok(banner.includes('id="joinCode"') && banner.includes('id="joinName"'),
+        'the join form asks for something other than a code and a first name');
+    assert.ok(/maxlength="6"/.test(banner), 'the code field does not match the 6-character code');
+    assert.ok(/maxlength="24"/.test(banner), 'the name field does not match cleanFirstName');
+});
+
+/**
+ * A phone is how most of these pages get opened, and a header that hides the
+ * wrong link has no visible symptom on a laptop. `.hide-sm` is the marker for
+ * "this link is optional on a small screen"; a blanket rule that hides every
+ * plain nav link also hid Sign out, leaving a teacher no way out on a phone.
+ */
+test('the small-screen header hides only links that opt in', () => {
+    assert.ok(!/nav a:not\(\.btn\)\s*\{[^}]*display:\s*none/.test(CSS),
+        'a blanket rule hides every plain nav link — mark links .hide-sm instead');
+
+    const nav = TEACHER.slice(TEACHER.indexOf('<nav>'), TEACHER.indexOf('</nav>'));
+    const signOut = nav.split('\n').find((l) => l.includes('id="signOut"'));
+    assert.ok(signOut, 'the teacher page has no sign-out link');
+    assert.ok(!signOut.includes('hide-sm'), 'Sign out disappears on a phone');
+});
+
+test('hiding something hides it, even with an inline display', () => {
+    // #joinForm sets display:flex inline so it lays out when shown. An inline
+    // style beats a class, so without !important the form rendered open,
+    // directly under the button whose job is to open it.
+    assert.match(CSS, /\.hidden\s*\{\s*display:\s*none\s*!important\s*\}/,
+        '.hidden does not beat an inline display');
 });

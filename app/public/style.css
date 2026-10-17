@@ -92,7 +92,10 @@ a { color: inherit }
 .nar   { max-width: 660px }
 .dim   { color: var(--dim) }
 .num   { font-variant-numeric: tabular-nums }
-.hidden { display: none }
+/* !important because this is a utility the scripts toggle on elements that
+   carry their own inline `display`. Without it the join form rendered open
+   under the button that is supposed to reveal it. */
+.hidden { display: none !important }
 
 /* The eyebrow is a ledger heading: small, spaced, stamped above the section. */
 .eyebrow {
@@ -176,9 +179,18 @@ hr.rule { border: 0; border-top: 1px solid var(--rule); margin: 0 }
 /* On a phone the header earns its space with two things only: who this is,
    and the way in. Every other link is still in the page below. */
 @media (max-width: 600px) {
-    .site-head nav a:not(.btn) { display: none }
+    /* Only links marked .hide-sm go. A blanket `a:not(.btn)` also takes out
+       Sign out on the teacher page, which is a teacher's only way out. */
+    .site-head nav { gap: 14px }
     .brand { font-size: 1rem }
     .site-head nav .btn { padding: 9px 15px }
+}
+
+/* The roster's Note column repeats what "Worth a word" says right above it,
+   and on a phone it wraps to one word per line. Drop the column, keep the
+   numbers — the reasons are already there in full. */
+@media (max-width: 600px) {
+    .roster th:last-child, .roster .reason { display: none }
 }
 
 /* ── Sections ────────────────────────────────────────────────────────── */
@@ -340,3 +352,64 @@ tr.total td { border-bottom: 0; border-top: 2px solid var(--ink); padding-top: 1
        border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent) }
 
 .game footer { text-align: center; color: var(--dim); font-size: .85rem; margin-top: 10px }
+
+/* ── Teacher pages ───────────────────────────────────────────────────── */
+
+.sheet { max-width: 480px; margin: 56px auto; padding: 0 20px }
+.board { max-width: 1060px; margin: 0 auto; padding: 36px 20px 80px }
+
+input[type=text], input[type=email], input[type=password] {
+    width: 100%; padding: 12px 13px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--paper); color: var(--ink); font: 400 1rem Mukta, sans-serif;
+}
+.field { margin-bottom: 16px }
+.field label { display: block; font-weight: 600; font-size: .92rem; margin-bottom: 7px }
+.field .help { font-size: .85rem; color: var(--dim); margin-top: 6px }
+
+/* Tabs. The underline is the state, so the inactive one does not look
+   disabled — both are things you can do. */
+.tabs { display: flex; gap: 26px; border-bottom: 1px solid var(--rule); margin-bottom: 26px }
+.tabs button {
+    background: none; border: 0; padding: 0 0 13px; cursor: pointer;
+    font: 600 1.02rem Mukta, sans-serif; color: var(--dim);
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent) }
+
+.note { padding: 12px 14px; border-radius: 9px; font-size: .94rem; margin-bottom: 18px }
+.note.bad  { background: color-mix(in srgb, var(--loss) 11%, transparent);
+             border-left: 3px solid var(--loss) }
+.note.good { background: color-mix(in srgb, var(--profit) 11%, transparent);
+             border-left: 3px solid var(--profit) }
+
+/* The join code. A teacher reads this across a room, so it is the biggest
+   thing on the screen and spaced so no two characters run together. */
+.code {
+    font-family: Fraunces, Georgia, serif; font-weight: 600;
+    font-size: clamp(2rem, 7vw, 3rem); letter-spacing: .14em;
+    color: var(--accent); font-variant-numeric: tabular-nums;
+}
+
+.class-card { display: flex; justify-content: space-between; align-items: center;
+              gap: 20px; flex-wrap: wrap; text-decoration: none }
+.class-card:hover { border-color: var(--accent) }
+
+.roster { width: 100%; border-collapse: collapse; margin-top: 10px }
+.roster th { text-align: left; font-size: .76rem; letter-spacing: .09em;
+             text-transform: uppercase; color: var(--dim); font-weight: 700;
+             padding: 0 10px 10px 0; border-bottom: 2px solid var(--ink) }
+.roster td { padding: 11px 10px 11px 0; border-bottom: 1px solid var(--rule);
+             font-variant-numeric: tabular-nums }
+.roster td:first-child { font-weight: 600 }
+.roster tr[data-attention="yes"] td:first-child { color: var(--accent) }
+/* Not `.why` — that is the tutor's answer box on the game page, and a td
+   borrowing its background tints every row as though everyone needs a word. */
+.roster .reason { font-size: .88rem; color: var(--dim) }
+
+.patterns { list-style: none; padding: 0; margin: 14px 0 0 }
+.patterns li { padding: 10px 0 10px 26px; border-bottom: 1px solid var(--rule);
+               position: relative; font-size: 1.02rem }
+.patterns li::before { content: "→"; position: absolute; left: 0; color: var(--accent);
+                       font-weight: 700 }
+
+.empty { text-align: center; padding: 48px 20px; color: var(--dim) }

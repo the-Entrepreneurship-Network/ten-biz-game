@@ -15,9 +15,40 @@
 <header class="site-head">
   <div class="wrap">
     <a class="brand" href="/"><span class="mark">₹</span> Business Playground</a>
-    <nav><a href="/#schools">For schools</a></nav>
+    <nav><a href="/#schools" class="hide-sm">For schools</a></nav>
   </div>
 </header>
+
+<!--
+  Joining a class is optional and stays that way. Playing without one is the
+  free demo, and the demo is the whole reason a school ever sees this.
+-->
+<div class="wrap" style="max-width:640px; padding-top:18px">
+  <div class="card hidden" id="joinBar" style="padding:14px 16px">
+    <div id="joinPrompt">
+      <span class="dim" style="font-size:.94rem">Playing on your own.</span>
+      <button class="btn btn-ghost" id="joinOpen"
+              style="padding:7px 14px; font-size:.9rem; margin-left:8px">I have a class code</button>
+    </div>
+
+    <form id="joinForm" class="hidden" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end">
+      <div class="field" style="flex:1 1 130px; margin:0">
+        <label for="joinCode">Class code</label>
+        <input type="text" id="joinCode" maxlength="6" autocomplete="off"
+               autocapitalize="characters" spellcheck="false" style="text-transform:uppercase">
+      </div>
+      <div class="field" style="flex:1 1 130px; margin:0">
+        <label for="joinName">Your first name</label>
+        <input type="text" id="joinName" maxlength="24" autocomplete="given-name">
+      </div>
+      <button class="btn btn-accent" id="joinGo" style="padding:12px 20px">Join</button>
+    </form>
+
+    <p class="note bad hidden" id="joinError" style="margin:12px 0 0"></p>
+  </div>
+
+  <p class="dim hidden" id="joinedAs" style="font-size:.94rem; margin:0"></p>
+</div>
 
 <main class="game">
 
@@ -232,9 +263,50 @@ $('whyBtn').onclick = async () => {
 
 $('again').onclick = start;
 
+/* ── Joining a class ──────────────────────────────────────────────────── */
+
+function paintJoin(me) {
+  const joined = me && me.className;
+  $('joinBar').classList.toggle('hidden', !!joined);
+  $('joinedAs').classList.toggle('hidden', !joined);
+  if (joined) {
+    $('joinedAs').textContent = me.name + ' · ' + me.className;
+  }
+}
+
+$('joinOpen').onclick = () => {
+  $('joinPrompt').classList.add('hidden');
+  $('joinForm').classList.remove('hidden');
+  $('joinCode').focus();
+};
+
+$('joinForm').onsubmit = async (e) => {
+  e.preventDefault();
+  $('joinGo').disabled = true;
+  $('joinError').classList.add('hidden');
+  try {
+    const d = await api('/api/join', {
+      code: $('joinCode').value, name: $('joinName').value,
+    });
+    if (d.error) {
+      $('joinError').textContent = d.error;
+      $('joinError').classList.remove('hidden');
+      return;
+    }
+    $('joinForm').classList.add('hidden');
+    paintJoin({ className: d.className, name: d.name });
+  } catch (_) {
+    $('joinError').textContent = 'Could not reach the server. Try again.';
+    $('joinError').classList.remove('hidden');
+  } finally {
+    $('joinGo').disabled = false;
+  }
+};
+
 /* Resume whatever was going on, so closing the tab does not lose the game. */
 (async () => {
   const me = await api('/api/me');
+  paintJoin(me);
   const cur = await api('/api/run');
   STATE.coins = me.points || 0;
   if (cur.run && !cur.run.over) {
