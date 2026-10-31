@@ -201,13 +201,13 @@
       <div>
         <h3>What it costs</h3>
         <ul>
-          <li>Pricing on request, per school, per year</li>
+          <li id="priceLine">Pricing on request, per school, per year</li>
           <li>Unlimited classes and students within the school</li>
           <li>A free trial class before you decide anything</li>
           <li>Invoiced — no card, no online payment</li>
         </ul>
         <p style="margin-top:22px; display:flex; gap:12px; flex-wrap:wrap">
-          <a class="btn btn-accent" href="mailto:growth@entrepreneurshipnetwork.net?subject=Business%20Playground%20for%20our%20school">Ask about your school</a>
+          <a class="btn btn-accent" id="askLink" href="mailto:growth@entrepreneurshipnetwork.net?subject=Business%20Playground%20for%20our%20school">Ask about your school</a>
           <a class="btn btn-ghost" href="/teacher">Start a free class</a>
         </p>
       </div>
@@ -343,6 +343,20 @@ function demoNumbers(price) {
     slider.addEventListener('input', paint);
     paint();
 })();
+</script>
+<script>
+/* The price and the address are the two things that change without a deploy.
+   The HTML above already says something sensible, so this only ever replaces
+   it — a failed request, or an empty setting, leaves the page as written. */
+fetch('/api/settings').then((r) => r.json()).then((s) => {
+  if (s && s.price) {
+    document.getElementById('priceLine').textContent = s.price;
+  }
+  if (s && s.contact_email) {
+    document.getElementById('askLink').href = 'mailto:' + s.contact_email
+      + '?subject=Business%20Playground%20for%20our%20school';
+  }
+}).catch(function () { /* the written-in text stands */ });
 </script>
 </body>
 </html>

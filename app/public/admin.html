@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TEN staff — Business Playground</title>
+<meta name="description" content="Schools, teachers, and the text on the site.">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Mukta:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="/"><span class="mark">₹</span> Business Playground</a>
+    <nav>
+      <a href="/teacher" class="hide-sm">Teacher view</a>
+      <a href="#" id="signOut">Sign out</a>
+    </nav>
+  </div>
+</header>
+
+<!--
+  Shown when the signed-in account is not on the admin list — and when nobody
+  is signed in at all. The API answers 404 either way, so this page never
+  confirms that an admin area exists.
+-->
+<main class="sheet hidden" id="shutView">
+  <h1 style="font-size:1.6rem">Nothing here</h1>
+  <p class="dim" style="margin-top:10px">
+    This page is for TEN staff. If you are a teacher, your classes are on the
+    <a href="/teacher">teacher page</a>.
+  </p>
+</main>
+
+<main class="board hidden" id="adminView">
+  <p class="eyebrow">TEN staff</p>
+  <h1 style="font-size:2rem">Schools and teachers</h1>
+
+  <section style="padding:30px 0 0">
+    <div class="chart-head">
+      <h2 style="font-size:1.3rem">Schools</h2>
+      <span class="dim" id="schoolCount"></span>
+    </div>
+    <table class="roster" id="schools"></table>
+  </section>
+
+  <section style="padding:34px 0 0">
+    <h2 style="font-size:1.3rem">Teachers</h2>
+    <p class="dim" style="margin-top:8px; font-size:.97rem">
+      A teacher who has forgotten their password has no other way back in —
+      there is no reset email yet. Reset it here and read the new one to them.
+    </p>
+    <div class="note hidden" id="resetOut" style="margin-top:16px"></div>
+    <table class="roster" id="teachers"></table>
+  </section>
+
+  <section style="padding:34px 0 0">
+    <h2 style="font-size:1.3rem">Text on the site</h2>
+    <p class="dim" style="margin-top:8px; font-size:.97rem">
+      The two things that change without a deploy. Everything else lives in the code.
+    </p>
+    <form id="settingsForm" class="card" style="margin-top:16px">
+      <div class="field">
+        <label for="sPrice">Price, as schools should read it</label>
+        <input type="text" id="sPrice" placeholder="Pricing on request">
+      </div>
+      <div class="field">
+        <label for="sEmail">Address schools write to</label>
+        <input type="email" id="sEmail" placeholder="growth@entrepreneurshipnetwork.net">
+      </div>
+      <button class="btn btn-accent" id="saveSettings">Save</button>
+      <p class="note hidden" id="settingsOk" style="margin:14px 0 0">Saved.</p>
+    </form>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (t) => String(t ?? '').replace(/[&<>"]/g,
+  (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const api = async (path, body) => {
+  const res = await fetch(path, body
+    ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }
+    : {});
+  try { return await res.json(); } catch (_) { return { error: 'The server did not answer properly.' }; }
+};
+const when = (iso) => String(iso ?? '').slice(0, 10);
+
+$('signOut').onclick = async (e) => {
+  e.preventDefault();
+  await api('/api/teacher/logout', {});
+  location.href = '/teacher';
+};
+
+async function load() {
+  const d = await api('/api/admin/schools');
+  // 404 for a signed-out visitor and for a signed-in non-admin alike, so this
+  // page cannot be used to find out whether an admin area exists.
+  if (d.error) { $('shutView').classList.remove('hidden'); return; }
+
+  $('schoolCount').textContent = d.schools.length
+    + (d.schools.length === 1 ? ' school' : ' schools');
+  $('schools').innerHTML =
+    '<tr><th>School</th><th>Code</th><th>Teachers</th><th>Classes</th><th>Since</th></tr>'
+    + d.schools.map((s) =>
+        '<tr><td>' + esc(s.name) + '</td><td class="code" style="font-size:1rem">' + esc(s.code)
+        + '</td><td>' + s.teachers + '</td><td>' + s.classes + '</td><td>' + when(s.created_at)
+        + '</td></tr>').join('')
+    || '<tr><td colspan="5" class="empty">No schools yet.</td></tr>';
+
+  const t = await api('/api/admin/teachers');
+  $('teachers').innerHTML =
+    '<tr><th>Name</th><th>Email</th><th>School</th><th>Since</th><th></th></tr>'
+    + (t.teachers || []).map((x) =>
+        '<tr><td>' + esc(x.name) + '</td><td class="reason">' + esc(x.email) + '</td>'
+        + '<td>' + (x.school ? esc(x.school) + (x.role === 'head' ? ' <em>head</em>' : '')
+                             : '<span class="dim">—</span>') + '</td>'
+        + '<td>' + when(x.created_at) + '</td>'
+        + '<td class="fix"><button data-reset="' + esc(x.id) + '">Reset password</button></td></tr>'
+      ).join('')
+    || '<tr><td colspan="5" class="empty">No teachers yet.</td></tr>';
+
+  for (const b of $('teachers').querySelectorAll('[data-reset]')) {
+    b.onclick = () => reset(b.dataset.reset, b.closest('tr').cells[0].textContent);
+  }
+
+  const s = await api('/api/settings');
+  $('sPrice').value = s.price || '';
+  $('sEmail').value = s.contact_email || '';
+  $('adminView').classList.remove('hidden');
+}
+
+async function reset(teacherId, name) {
+  if (!confirm('Reset the password for ' + name + '?\n\n'
+             + 'They will be signed out everywhere and you will have to read '
+             + 'them the new password.')) return;
+
+  const d = await api('/api/admin/reset', { teacherId });
+  if (d.error) { alert(d.error); return; }
+
+  /* Shown once, and never stored anywhere we can read it back. If this is
+     closed before it is written down, reset it again. */
+  $('resetOut').innerHTML = 'New password for <strong>' + esc(d.name) + '</strong> ('
+    + esc(d.email) + '):<br><span class="code" style="font-size:1.6rem">' + esc(d.password)
+    + '</span><br><span class="dim" style="font-size:.9rem">Read it to them now — '
+    + 'it is not shown again. Ask them to change it once they are back in.</span>';
+  $('resetOut').classList.remove('hidden');
+  $('resetOut').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+$('settingsForm').onsubmit = async (e) => {
+  e.preventDefault();
+  $('saveSettings').disabled = true;
+  $('settingsOk').classList.add('hidden');
+  try {
+    const d = await api('/api/settings',
+      { price: $('sPrice').value, contact_email: $('sEmail').value });
+    if (d.error) { alert(d.error); return; }
+    $('settingsOk').classList.remove('hidden');
+  } finally { $('saveSettings').disabled = false; }
+};
+
+load();
+</script>
+</body>
+</html>

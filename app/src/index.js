@@ -6,7 +6,8 @@ import { breakEvenUnits, BUSINESSES, UPGRADES, effectsOf } from './sim.js';
 import {
     makeCode, normaliseCode, CODE_LENGTH, newPasswordRecord, passwordMatches,
     checkSignup, cleanFirstName, newToken, sessionExpiry, isExpired,
-    summariseStudent, classPatterns, toCsv,
+    summariseStudent, classPatterns, toCsv, tempPassword, isAdminEmail, isHead,
+    MIN_PASSWORD,
 } from './auth.js';
 
 /**
@@ -26,7 +27,7 @@ const SYSTEM = [
 ].join(' ');
 
 /** Extension-less paths the site hands out, and the file each one serves. */
-export const PAGES = { '/play': '/play.html', '/teacher': '/teacher.html' };
+export const PAGES = { '/play': '/play.html', '/teacher': '/teacher.html', '/admin': '/admin.html' };
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
     status, headers: { 'content-type': 'application/json; charset=utf-8' },
@@ -126,7 +127,9 @@ async function handle(request, env) {
         // Teacher routes resolve first and return on their own. They have a
         // separate identity, and a teacher opening a dashboard must not mint
         // a student id — that would put a phantom pupil in their own class.
-        if (path.startsWith('/api/teacher') || path.startsWith('/api/class')) {
+        if (path.startsWith('/api/teacher') || path.startsWith('/api/class')
+            || path.startsWith('/api/school') || path.startsWith('/api/admin')
+            || path === '/api/settings') {
             return teacherRoutes(request, env, url, path);
         }
 
@@ -518,9 +521,69 @@ async function freshCode(env, attempts = 8) {
     throw new Error('Could not allocate a class code. Try again.');
 }
 
+/** The school a teacher belongs to, or null — belonging to none is allowed. */
+async function staffOf(db, teacherId) {
+    return db.prepare(
+        `SELECT s.school_id, s.role, c.name, c.code
+           FROM staff s JOIN school c ON c.id = s.school_id
+          WHERE s.teacher_id = ?`
+    ).bind(teacherId).first();
+}
+
+/**
+ * May this teacher open this class?
+ *
+ * Their own, always. A colleague's, only if they are the head of the school
+ * that colleague belongs to. Everything else is a 404 that looks exactly like
+ * a class that does not exist, so an id cannot be probed.
+ *
+ * This is the one rule in the app that widens who can read a class, so it is
+ * written once and every route asks it rather than rolling its own WHERE.
+ */
+async function classFor(db, me, classId) {
+    const mine = await db.prepare(
+        'SELECT id, name, code, teacher_id FROM class WHERE id = ? AND teacher_id = ?'
+    ).bind(classId, me.id).first();
+    if (mine) return mine;
+
+    const staff = await staffOf(db, me.id);
+    if (!isHead(staff)) return null;
+
+    // A head sees the classes of teachers in THEIR school — the join on
+    // staff.school_id is what stops it being every school.
+    return db.prepare(
+        `SELECT c.id, c.name, c.code, c.teacher_id
+           FROM class c JOIN staff s ON s.teacher_id = c.teacher_id
+          WHERE c.id = ? AND s.school_id = ?`
+    ).bind(classId, staff.school_id).first();
+}
+
+/** A school code nobody else holds. Same retry as class codes. */
+async function freshSchoolCode(env, attempts = 8) {
+    for (let i = 0; i < attempts; i += 1) {
+        const code = makeCode();
+        const taken = await env.DB.prepare('SELECT 1 FROM school WHERE code = ?').bind(code).first();
+        if (!taken) return code;
+    }
+    throw new Error('Could not allocate a school code. Try again.');
+}
+
+const SETTING_KEYS = ['price', 'contact_email'];
+
+async function settingsOf(db) {
+    const rows = await db.prepare('SELECT key, value FROM setting').all();
+    const out = {};
+    for (const r of rows.results ?? []) if (SETTING_KEYS.includes(r.key)) out[r.key] = r.value;
+    return out;
+}
+
 async function teacherRoutes(request, env, url, path) {
     const post = request.method === 'POST';
     const say = (body, status = 200) => json(body, status);
+
+    // The landing page reads this without a login, so it resolves before the
+    // sign-in gate. Only the known keys are ever returned.
+    if (path === '/api/settings' && !post) return say(await settingsOf(env.DB));
 
     /* ── Signing up ──────────────────────────────────────────────────── */
 
@@ -543,9 +606,25 @@ async function teacherRoutes(request, env, url, path) {
         ).bind(id, email, String(body.name).trim().slice(0, 80),
                String(body.school ?? '').trim().slice(0, 120), salt, hash).run();
 
+        // A school code on the signup form puts the new teacher straight into
+        // that school. A wrong code is not worth failing the whole signup for
+        // — the account is made and they can join from inside.
+        let joined = null;
+        const code = normaliseCode(body.schoolCode);
+        if (code) {
+            const sch = await env.DB.prepare('SELECT id, name FROM school WHERE code = ?')
+                .bind(code).first();
+            if (sch) {
+                await env.DB.prepare(
+                    'INSERT INTO staff (teacher_id, school_id, role) VALUES (?, ?, ?)'
+                ).bind(id, sch.id, 'teacher').run();
+                joined = sch.name;
+            }
+        }
+
         const token = await startSession(env, id);
-        return setCookie(say({ ok: true, name: String(body.name).trim() }), TEACHER_COOKIE,
-                         token, 60 * 60 * 24 * 30);
+        return setCookie(say({ ok: true, name: String(body.name).trim(), school: joined }),
+                         TEACHER_COOKIE, token, 60 * 60 * 24 * 30);
     }
 
     /* ── Signing in ──────────────────────────────────────────────────── */
@@ -583,13 +662,121 @@ async function teacherRoutes(request, env, url, path) {
     if (!me) return say({ error: 'Sign in first.' }, 401);
 
     if (path === '/api/teacher/me') {
-        const classes = await env.DB.prepare(
-            `SELECT c.id, c.name, c.code,
-                    (SELECT COUNT(*) FROM membership m WHERE m.class_id = c.id) AS students
-               FROM class c WHERE c.teacher_id = ? ORDER BY c.created_at DESC`
-        ).bind(me.id).all();
-        return say({ teacher: { name: me.name, email: me.email, school: me.school },
-                     classes: classes.results ?? [] });
+        const staff = await staffOf(env.DB, me.id);
+
+        // A head sees every class in the school, with whose it is. A teacher
+        // sees their own. A teacher in no school sees their own — which is
+        // every account that existed before schools did.
+        const classes = isHead(staff)
+            ? await env.DB.prepare(
+                `SELECT c.id, c.name, c.code, t.name AS teacher,
+                        (c.teacher_id = ?) AS mine,
+                        (SELECT COUNT(*) FROM membership m WHERE m.class_id = c.id) AS students
+                   FROM class c
+                   JOIN staff s ON s.teacher_id = c.teacher_id
+                   JOIN teacher t ON t.id = c.teacher_id
+                  WHERE s.school_id = ? ORDER BY c.created_at DESC`
+              ).bind(me.id, staff.school_id).all()
+            : await env.DB.prepare(
+                `SELECT c.id, c.name, c.code, 1 AS mine,
+                        (SELECT COUNT(*) FROM membership m WHERE m.class_id = c.id) AS students
+                   FROM class c WHERE c.teacher_id = ? ORDER BY c.created_at DESC`
+              ).bind(me.id).all();
+
+        return say({
+            teacher: { name: me.name, email: me.email, school: me.school },
+            // Only a head hands out the code. This gate exists on /api/school
+            // too — it has to be on BOTH, because either one leaking it lets
+            // any teacher enrol anybody into the school.
+            school: staff
+                ? { name: staff.name, role: staff.role, code: isHead(staff) ? staff.code : null }
+                : null,
+            isAdmin: isAdminEmail(me.email, env.ADMIN_EMAILS),
+            classes: (classes.results ?? []).map((c) => ({ ...c, mine: !!c.mine })),
+        });
+    }
+
+    /* ── Schools ─────────────────────────────────────────────────────── */
+
+    if (path === '/api/school' && post) {
+        const body = await readBody(request);
+        const name = String(body?.name ?? '').trim().slice(0, 120);
+        if (!name) return say({ error: 'Give the school a name.' }, 400);
+        if (await staffOf(env.DB, me.id)) {
+            return say({ error: 'You are already part of a school.' }, 409);
+        }
+
+        const id = newId();
+        const code = await freshSchoolCode(env);
+        await env.DB.batch([
+            env.DB.prepare('INSERT INTO school (id, name, code) VALUES (?, ?, ?)')
+                .bind(id, name, code),
+            // Whoever creates the school runs it. Somebody has to, and an
+            // empty school with no head cannot add anyone.
+            env.DB.prepare('INSERT INTO staff (teacher_id, school_id, role) VALUES (?, ?, ?)')
+                .bind(me.id, id, 'head'),
+        ]);
+        return say({ id, name, code, role: 'head' });
+    }
+
+    if (path === '/api/school/join' && post) {
+        const body = await readBody(request);
+        if (await staffOf(env.DB, me.id)) {
+            return say({ error: 'You are already part of a school.' }, 409);
+        }
+        const code = normaliseCode(body?.code);
+        const sch = code && await env.DB.prepare('SELECT id, name FROM school WHERE code = ?')
+            .bind(code).first();
+        if (!sch) return say({ error: 'No school has that code. Check it with your head of department.' }, 404);
+
+        await env.DB.prepare('INSERT INTO staff (teacher_id, school_id, role) VALUES (?, ?, ?)')
+            .bind(me.id, sch.id, 'teacher').run();
+        return say({ ok: true, name: sch.name, role: 'teacher' });
+    }
+
+    if (path === '/api/school' && !post) {
+        const staff = await staffOf(env.DB, me.id);
+        if (!staff) return say({ school: null, staff: [] });
+
+        const people = await env.DB.prepare(
+            `SELECT t.name, t.email, s.role,
+                    (SELECT COUNT(*) FROM class c WHERE c.teacher_id = t.id) AS classes
+               FROM staff s JOIN teacher t ON t.id = s.teacher_id
+              WHERE s.school_id = ? ORDER BY s.role DESC, t.name`
+        ).bind(staff.school_id).all();
+
+        return say({
+            school: { name: staff.name, role: staff.role,
+                      // Only a head hands out the code. A teacher who could
+                      // read it could enrol anyone into their school.
+                      code: isHead(staff) ? staff.code : null },
+            staff: people.results ?? [],
+        });
+    }
+
+    /* ── Your own password ───────────────────────────────────────────── */
+
+    if (path === '/api/teacher/password' && post) {
+        const body = await readBody(request);
+        const row = await env.DB.prepare('SELECT pw_salt, pw_hash FROM teacher WHERE id = ?')
+            .bind(me.id).first();
+        if (!row || !await passwordMatches(body?.current, row.pw_salt, row.pw_hash)) {
+            return say({ error: 'Your current password is not right.' }, 401);
+        }
+        if (String(body?.next ?? '').length < MIN_PASSWORD) {
+            return say({ error: `Use a password of at least ${MIN_PASSWORD} characters.` }, 400);
+        }
+
+        const { salt, hash } = await newPasswordRecord(body.next);
+        await env.DB.batch([
+            env.DB.prepare('UPDATE teacher SET pw_salt = ?, pw_hash = ? WHERE id = ?')
+                .bind(salt, hash, me.id),
+            // Every other device is signed out. A password change that leaves
+            // old sessions alive does not lock anybody out of anything.
+            env.DB.prepare('DELETE FROM session WHERE teacher_id = ? AND token != ?')
+                .bind(me.id, me.token),
+        ]);
+        return say({ ok: true });
     }
 
     if (path === '/api/class' && post) {
@@ -610,12 +797,11 @@ async function teacherRoutes(request, env, url, path) {
     if (path === '/api/class' || path === '/api/class/csv') {
         const classId = url.searchParams.get('id') || '';
 
-        // The teacher_id in the WHERE clause is the authorisation check. A
-        // teacher guessing another class's id gets the same answer as one
-        // guessing an id that does not exist.
-        const cls = await env.DB.prepare(
-            'SELECT id, name, code FROM class WHERE id = ? AND teacher_id = ?'
-        ).bind(classId, me.id).first();
+        // classFor() is the authorisation check: your own class, or a
+        // colleague's if you are the head of their school. A teacher guessing
+        // another class's id gets the same answer as one guessing an id that
+        // does not exist.
+        const cls = await classFor(env.DB, me, classId);
         if (!cls) return say({ error: 'No such class.' }, 404);
 
         const [students, events, runs] = await Promise.all([
@@ -678,6 +864,122 @@ async function teacherRoutes(request, env, url, path) {
             attention: summaries.filter((s) => s.needsAttention),
             patterns: classPatterns(summaries),
         });
+    }
+
+    /* ── Fixing a class ──────────────────────────────────────────────── */
+
+    if (path === '/api/class/student' && post) {
+        const body = await readBody(request);
+        const cls = await classFor(env.DB, me, String(body?.classId ?? ''));
+        if (!cls) return say({ error: 'No such class.' }, 404);
+
+        // The membership row is the proof this student is in THIS class —
+        // without it, a student id from another class could be renamed.
+        const inClass = await env.DB.prepare(
+            'SELECT 1 FROM membership WHERE student_id = ? AND class_id = ?'
+        ).bind(String(body?.studentId ?? ''), cls.id).first();
+        if (!inClass) return say({ error: 'That student is not in this class.' }, 404);
+
+        if (body?.remove) {
+            // Only the membership goes. Their shop and their coins stay, so a
+            // student removed by mistake can type the code again and carry on.
+            await env.DB.prepare('DELETE FROM membership WHERE student_id = ? AND class_id = ?')
+                .bind(body.studentId, cls.id).run();
+            return say({ ok: true, removed: true });
+        }
+
+        const name = cleanFirstName(body?.name);
+        if (!name) return say({ error: 'Type a first name.' }, 400);
+        await env.DB.prepare('UPDATE student SET name = ? WHERE id = ?')
+            .bind(name, body.studentId).run();
+        return say({ ok: true, name });
+    }
+
+    // Writing settings is an admin act, but the path is not under /api/admin,
+    // so it carries its own check rather than living in that block where it
+    // would never be reached.
+    if (path === '/api/settings' && post) {
+        if (!isAdminEmail(me.email, env.ADMIN_EMAILS)) return say({ error: 'Not found.' }, 404);
+        const body = await readBody(request);
+        const writes = SETTING_KEYS
+            .filter((k) => typeof body?.[k] === 'string')
+            .map((k) => env.DB.prepare(
+                `INSERT INTO setting (key, value) VALUES (?, ?)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value,
+                                                updated_at = datetime('now')`
+            ).bind(k, String(body[k]).trim().slice(0, 200)));
+        if (writes.length) await env.DB.batch(writes);
+        return say(await settingsOf(env.DB));
+    }
+
+    /* ── TEN staff ───────────────────────────────────────────────────────
+     *
+     * Who gets in is read from a Worker secret, never from the database, so
+     * no request can promote anybody. An unset secret means nobody — a page
+     * that opens up when its configuration is missing is worse than one that
+     * is simply shut.
+     * ─────────────────────────────────────────────────────────────────── */
+
+    if (path.startsWith('/api/admin')) {
+        if (!isAdminEmail(me.email, env.ADMIN_EMAILS)) {
+            return say({ error: 'Not found.' }, 404);     // not 403: do not confirm the page exists
+        }
+
+        if (path === '/api/admin/schools') {
+            const schools = await env.DB.prepare(
+                `SELECT c.id, c.name, c.code, c.created_at,
+                        (SELECT COUNT(*) FROM staff s WHERE s.school_id = c.id) AS teachers,
+                        (SELECT COUNT(*) FROM class k
+                          JOIN staff s2 ON s2.teacher_id = k.teacher_id
+                         WHERE s2.school_id = c.id) AS classes
+                   FROM school c ORDER BY c.created_at DESC`
+            ).all();
+            // Teachers in no school at all — every account from before schools
+            // existed, and the ones most likely to need a hand.
+            const loose = await env.DB.prepare(
+                `SELECT t.id, t.name, t.email, t.created_at
+                   FROM teacher t LEFT JOIN staff s ON s.teacher_id = t.id
+                  WHERE s.teacher_id IS NULL ORDER BY t.created_at DESC`
+            ).all();
+            return say({ schools: schools.results ?? [], unaffiliated: loose.results ?? [] });
+        }
+
+        if (path === '/api/admin/teachers') {
+            const rows = await env.DB.prepare(
+                `SELECT t.id, t.name, t.email, t.created_at, c.name AS school, s.role
+                   FROM teacher t
+                   LEFT JOIN staff s ON s.teacher_id = t.id
+                   LEFT JOIN school c ON c.id = s.school_id
+                  ORDER BY t.created_at DESC LIMIT 500`
+            ).all();
+            return say({ teachers: rows.results ?? [] });
+        }
+
+        /**
+         * Let a locked-out teacher back in.
+         *
+         * There is no email service, so the new password is shown to the admin
+         * once and read down the phone. Every existing session is dropped: if
+         * the reason for the reset is that somebody else has the old password,
+         * leaving their session alive defeats the whole exercise.
+         */
+        if (path === '/api/admin/reset' && post) {
+            const body = await readBody(request);
+            const who = await env.DB.prepare('SELECT id, name, email FROM teacher WHERE id = ?')
+                .bind(String(body?.teacherId ?? '')).first();
+            if (!who) return say({ error: 'No such teacher.' }, 404);
+
+            const fresh = tempPassword();
+            const { salt, hash } = await newPasswordRecord(fresh);
+            await env.DB.batch([
+                env.DB.prepare('UPDATE teacher SET pw_salt = ?, pw_hash = ? WHERE id = ?')
+                    .bind(salt, hash, who.id),
+                env.DB.prepare('DELETE FROM session WHERE teacher_id = ?').bind(who.id),
+            ]);
+            return say({ ok: true, name: who.name, email: who.email, password: fresh });
+        }
+
+        return say({ error: 'not found' }, 404);
     }
 
     return say({ error: 'not found' }, 404);

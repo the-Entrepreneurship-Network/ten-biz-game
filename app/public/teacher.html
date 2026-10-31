@@ -18,6 +18,7 @@
     <a class="brand" href="/"><span class="mark">₹</span> Business Playground</a>
     <nav>
       <a href="/play" class="hide-sm">The game</a>
+      <a href="/admin" id="adminLink" class="hidden">TEN staff</a>
       <a href="#" id="signOut" class="hidden">Sign out</a>
     </nav>
   </div>
@@ -46,6 +47,12 @@
       <label for="fSchool">School <span class="dim" style="font-weight:400">(optional)</span></label>
       <input type="text" id="fSchool" autocomplete="organization">
     </div>
+    <div class="field hidden" id="codeField">
+      <label for="fCode">School code <span class="dim" style="font-weight:400">(if your school already uses this)</span></label>
+      <input type="text" id="fCode" maxlength="6" autocomplete="off"
+             autocapitalize="characters" spellcheck="false" style="text-transform:uppercase">
+      <p class="help">Your head of department has it. Leave blank if you are the first one here.</p>
+    </div>
     <div class="field">
       <label for="fEmail">Email</label>
       <input type="email" id="fEmail" autocomplete="email" required>
@@ -69,7 +76,57 @@
   <p class="eyebrow">Your classes</p>
   <h1 id="hello" style="font-size:2rem">Welcome back</h1>
 
-  <form id="newClassForm" class="card" style="margin-top:28px; display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end">
+  <!-- Your school: the code to read out, who else is here, and your password. -->
+  <div class="card school" id="schoolCard" style="margin-top:26px">
+    <div class="chart-head">
+      <h2 id="schoolName" style="font-size:1.2rem">Your school</h2>
+      <span class="dim" id="schoolRole" style="font-size:.86rem"></span>
+    </div>
+
+    <div id="schoolHas" class="hidden">
+      <p class="dim" id="schoolCodeLine" style="margin:10px 0 0; font-size:.95rem"></p>
+      <ul class="staff" id="staffList"></ul>
+    </div>
+
+    <div id="schoolNone" class="hidden">
+      <p class="dim" style="margin:10px 0 16px; font-size:.95rem">
+        A school lets several teachers share one place, and lets a head of
+        department see every class. You can also carry on on your own.
+      </p>
+      <div class="tabs" role="tablist" style="margin-bottom:16px">
+        <button id="tabMake" role="tab" aria-selected="true">Start a school</button>
+        <button id="tabJoin" role="tab" aria-selected="false">Join with a code</button>
+      </div>
+      <form id="schoolForm" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end">
+        <div class="field" style="flex:1 1 240px; margin:0">
+          <label for="schoolInput" id="schoolInputLabel">School name</label>
+          <input type="text" id="schoolInput" placeholder="DAV Public School" required>
+        </div>
+        <button class="btn btn-accent" id="schoolGo">Create</button>
+      </form>
+      <p class="note bad hidden" id="schoolError" style="margin:14px 0 0"></p>
+    </div>
+
+    <details class="pwbox">
+      <summary>Change your password</summary>
+      <form id="pwForm" style="margin-top:14px">
+        <div class="field">
+          <label for="pwNow">Current password</label>
+          <input type="password" id="pwNow" autocomplete="current-password" required>
+        </div>
+        <div class="field">
+          <label for="pwNext">New password</label>
+          <input type="password" id="pwNext" autocomplete="new-password" required>
+          <p class="help">At least 8 characters. This signs you out everywhere else.</p>
+        </div>
+        <button class="btn" id="pwGo">Change it</button>
+        <p class="note bad hidden" id="pwError" style="margin:14px 0 0"></p>
+        <p class="note hidden" id="pwOk" style="margin:14px 0 0">Password changed.</p>
+      </form>
+    </details>
+  </div>
+
+  <form id="newClassForm" class="card" style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end">
     <div class="field" style="flex:1 1 240px; margin:0">
       <label for="className">Start a new class</label>
       <input type="text" id="className" placeholder="Class 9B" required>
@@ -144,7 +201,8 @@ function setMode(next) {
   const up = mode === 'up';
   $('tabIn').setAttribute('aria-selected', String(!up));
   $('tabUp').setAttribute('aria-selected', String(up));
-  for (const [el, hide] of [[$('nameField'), !up], [$('schoolField'), !up], [$('passHelp'), !up]]) {
+  for (const [el, hide] of [[$('nameField'), !up], [$('schoolField'), !up],
+                            [$('codeField'), !up], [$('passHelp'), !up]]) {
     el.classList.toggle('hidden', hide);
   }
   $('fName').required = up;
@@ -162,7 +220,8 @@ $('authForm').onsubmit = async (e) => {
   try {
     const payload = mode === 'up'
       ? { email: $('fEmail').value, password: $('fPass').value,
-          name: $('fName').value, school: $('fSchool').value }
+          name: $('fName').value, school: $('fSchool').value,
+          schoolCode: $('fCode').value }
       : { email: $('fEmail').value, password: $('fPass').value };
     const d = await api('/api/teacher/' + (mode === 'up' ? 'signup' : 'login'), payload);
     if (d.error) { fail($('authError'), d.error); return; }
@@ -190,17 +249,93 @@ async function loadClasses() {
   if (d.error) { show('authView'); return false; }
 
   $('hello').textContent = d.teacher.name ? ('Welcome back, ' + d.teacher.name) : 'Your classes';
+  $('adminLink').classList.toggle('hidden', !d.isAdmin);
+  paintSchool(d.school);
+
   $('classList').innerHTML = (d.classes || []).map((c) =>
     '<a class="card class-card" href="#' + c.id + '">'
     + '<span><strong style="font-size:1.15rem">' + esc(c.name) + '</strong><br>'
     + '<span class="dim" style="font-size:.94rem">' + c.students
-    + (c.students === 1 ? ' student' : ' students') + '</span></span>'
+    + (c.students === 1 ? ' student' : ' students')
+    /* A head sees the whole school's classes, so each one has to say whose
+       it is — otherwise they all look like the head's own. */
+    + (c.mine === false && c.teacher ? ' · ' + esc(c.teacher) : '')
+    + '</span></span>'
     + '<span class="code" style="font-size:1.5rem">' + esc(c.code) + '</span></a>'
   ).join('') || '<p class="empty">No classes yet. Create one above and read the code to your class.</p>';
 
   show('classesView');
   return true;
 }
+
+/* ── Your school ──────────────────────────────────────────────────────── */
+
+async function paintSchool(school) {
+  $('schoolHas').classList.toggle('hidden', !school);
+  $('schoolNone').classList.toggle('hidden', !!school);
+  if (!school) { $('schoolName').textContent = 'Your school'; $('schoolRole').textContent = ''; return; }
+
+  $('schoolName').textContent = school.name;
+  $('schoolRole').textContent = school.role === 'head' ? 'Head of department' : 'Teacher';
+  $('schoolCodeLine').innerHTML = school.code
+    ? 'Other teachers join with <strong class="code" style="font-size:1.1rem">'
+      + esc(school.code) + '</strong>'
+    : 'Your head of department has the code for new teachers.';
+
+  const d = await api('/api/school');
+  $('staffList').innerHTML = (d.staff || []).map((t) =>
+    '<li><span>' + esc(t.name) + (t.role === 'head' ? ' <em>head</em>' : '') + '</span>'
+    + '<span class="dim">' + t.classes + (t.classes === 1 ? ' class' : ' classes') + '</span></li>'
+  ).join('');
+}
+
+let schoolMode = 'make';
+function setSchoolMode(next) {
+  schoolMode = next;
+  const join = next === 'join';
+  $('tabMake').setAttribute('aria-selected', String(!join));
+  $('tabJoin').setAttribute('aria-selected', String(join));
+  $('schoolInputLabel').textContent = join ? 'School code' : 'School name';
+  $('schoolInput').placeholder = join ? 'BK4T9Q' : 'DAV Public School';
+  $('schoolInput').value = '';
+  $('schoolInput').style.textTransform = join ? 'uppercase' : 'none';
+  $('schoolGo').textContent = join ? 'Join' : 'Create';
+  fail($('schoolError'), '');
+}
+$('tabMake').onclick = () => setSchoolMode('make');
+$('tabJoin').onclick = () => setSchoolMode('join');
+
+$('schoolForm').onsubmit = async (e) => {
+  e.preventDefault();
+  $('schoolGo').disabled = true;
+  fail($('schoolError'), '');
+  try {
+    const v = $('schoolInput').value;
+    const d = schoolMode === 'join'
+      ? await api('/api/school/join', { code: v })
+      : await api('/api/school', { name: v });
+    if (d.error) { fail($('schoolError'), d.error); return; }
+    await loadClasses();
+  } catch (_) {
+    fail($('schoolError'), 'Could not reach the server. Try again.');
+  } finally { $('schoolGo').disabled = false; }
+};
+
+$('pwForm').onsubmit = async (e) => {
+  e.preventDefault();
+  $('pwGo').disabled = true;
+  fail($('pwError'), '');
+  $('pwOk').classList.add('hidden');
+  try {
+    const d = await api('/api/teacher/password',
+      { current: $('pwNow').value, next: $('pwNext').value });
+    if (d.error) { fail($('pwError'), d.error); return; }
+    $('pwNow').value = ''; $('pwNext').value = '';
+    $('pwOk').classList.remove('hidden');
+  } catch (_) {
+    fail($('pwError'), 'Could not reach the server. Try again.');
+  } finally { $('pwGo').disabled = false; }
+};
 
 $('newClassForm').onsubmit = async (e) => {
   e.preventDefault();
@@ -239,7 +374,8 @@ async function loadBoard(classId) {
   ).join('') || '<p class="dim">Nobody needs chasing right now.</p>';
 
   $('roster').innerHTML =
-    '<tr><th>Name</th><th>Weeks</th><th>Furthest</th><th>Below cost</th><th>Broke</th><th>Note</th></tr>'
+    '<tr><th>Name</th><th>Weeks</th><th>Furthest</th><th>Below cost</th><th>Broke</th>'
+    + '<th>Note</th><th></th></tr>'
     + (d.students || []).map((s) =>
         '<tr data-attention="' + (s.needsAttention ? 'yes' : 'no') + '">'
         + '<td>' + esc(s.name) + '</td>'
@@ -247,9 +383,36 @@ async function loadBoard(classId) {
         + '<td>' + s.lastWeek + '</td>'
         + '<td>' + s.belowCost + '</td>'
         + '<td>' + s.bankruptcies + '</td>'
-        + '<td class="reason">' + esc(s.reasons.join(', ')) + '</td></tr>'
+        + '<td class="reason">' + esc(s.reasons.join(', ')) + '</td>'
+        + '<td class="fix"><button data-rename="' + esc(s.id) + '" title="Rename">Rename</button>'
+        + '<button data-remove="' + esc(s.id) + '" title="Remove from class">Remove</button></td></tr>'
       ).join('')
-    || '<tr><td colspan="6" class="empty">No students have joined yet.</td></tr>';
+    || '<tr><td colspan="7" class="empty">No students have joined yet.</td></tr>';
+
+  /* Names get typed wrong and students leave. Without these a teacher has to
+     ask us to fix a spelling, which is not a product. */
+  for (const b of $('roster').querySelectorAll('[data-rename]')) {
+    b.onclick = async () => {
+      const row = b.closest('tr');
+      const was = row.cells[0].textContent;
+      const name = prompt('First name for ' + was + ':', was);
+      if (name === null || !name.trim()) return;
+      const r = await api('/api/class/student', { classId, studentId: b.dataset.rename, name });
+      if (r.error) { alert(r.error); return; }
+      loadBoard(classId);
+    };
+  }
+  for (const b of $('roster').querySelectorAll('[data-remove]')) {
+    b.onclick = async () => {
+      const was = b.closest('tr').cells[0].textContent;
+      if (!confirm('Remove ' + was + ' from this class?\n\nTheir shop and coins are kept — '
+                 + 'they can join again with the class code.')) return;
+      const r = await api('/api/class/student',
+        { classId, studentId: b.dataset.remove, remove: true });
+      if (r.error) { alert(r.error); return; }
+      loadBoard(classId);
+    };
+  }
 
   show('boardView');
 }
@@ -266,6 +429,7 @@ async function route() {
 addEventListener('hashchange', route);
 
 setMode('in');
+setSchoolMode('make');
 route();
 </script>
 </body>
