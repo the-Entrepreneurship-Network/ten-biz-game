@@ -1,0 +1,64 @@
+# Tests on every pull request; tests then deploy on every merge to main.
+#
+# This exists so shipping needs no laptop: merge a pull request on github.com,
+# from any device, and the site updates. Nothing about the project has to be
+# installed anywhere.
+name: Test and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:        # the Actions tab, to redeploy without a new commit
+
+# A second merge while the first is still deploying would otherwise race it.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  ship:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # The tests read schema.sql through node:sqlite, which arrived in 22.
+          node-version: '22'
+
+      # `npm install`, not `npm ci` — there is no lockfile, and the only
+      # dependency is wrangler itself.
+      - run: npm install
+
+      # Nothing below runs if this fails, so a broken merge cannot reach a
+      # classroom. This is the half the manual deploy never did.
+      - run: npm test
+
+      # Every statement in schema.sql is CREATE TABLE IF NOT EXISTS, so running
+      # it on each deploy adds whatever is new and leaves the rest alone. It is
+      # here rather than in a hand-run step because the one time it gets
+      # forgotten is the deploy that needed it.
+      #
+      # If an ALTER is ever added to that file this will fail on the second run
+      # — and the deploy stops rather than shipping code its tables cannot
+      # serve, which is the right way round.
+      - name: Create any new tables
+        if: github.event_name != 'pull_request'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: app
+          command: d1 execute ten-biz-game --remote --yes --file=./schema.sql
+
+      - name: Deploy
+        if: github.event_name != 'pull_request'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: app
+          command: deploy
