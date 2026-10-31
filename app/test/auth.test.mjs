@@ -5,6 +5,7 @@ import {
     makeCode, normaliseCode, CODE_LENGTH, newPasswordRecord, passwordMatches,
     timingSafeEqual, hashPassword, checkSignup, cleanFirstName, MIN_PASSWORD,
     sessionExpiry, isExpired, summariseStudent, classPatterns, toCsv,
+    PBKDF2_ITERATIONS, splitSalt,
 } from '../src/auth.js';
 
 /* ── Join codes ──────────────────────────────────────────────────────── */
@@ -70,6 +71,51 @@ test('the right password matches and a wrong one does not', async () => {
     // must not verify, or the salt is decoration.
     const other = await newPasswordRecord('kettle-whistle');
     assert.equal(await passwordMatches('kettle-whistle', other.salt, hash), false);
+});
+
+/**
+ * THE BUG THIS TEST EXISTS FOR.
+ *
+ * This was set to 100,000, which measured ~20ms of CPU. The Workers free plan
+ * allows about 10ms per request, so Cloudflare killed every signup and every
+ * login mid-request — the browser saw a dropped connection, and nothing in
+ * the suite noticed, because every test here runs in Node where there is no
+ * such limit.
+ *
+ * The ceiling is the hosting plan's, so it is written down as one. Raising
+ * the count past it needs the paid plan first, not a bigger number.
+ */
+const FREE_PLAN_CEILING = 25_000;       // ~5ms measured; the plan allows ~10ms
+
+test('the password cost fits inside the CPU the hosting plan allows', () => {
+    assert.ok(PBKDF2_ITERATIONS <= FREE_PLAN_CEILING,
+        `${PBKDF2_ITERATIONS} iterations will not finish inside a free Worker's CPU budget`);
+    // And it is not so low that it stops being a password hash at all.
+    assert.ok(PBKDF2_ITERATIONS >= 10_000, 'the cost has been lowered past the point of usefulness');
+});
+
+/**
+ * The cost travels with the salt, so raising it later cannot lock anybody
+ * out: a password hashed at the old count still verifies at the old count.
+ */
+test('a password still works after the default cost changes', async () => {
+    const { salt, hash } = await newPasswordRecord('kettle-whistle');
+    assert.match(salt, /^\d+\$[0-9a-f]{32}$/, 'the cost is not stored with the salt');
+    assert.equal(splitSalt(salt).iterations, PBKDF2_ITERATIONS);
+
+    // A record written when the default was something else entirely.
+    const oldSalt = `3000$${'ab'.repeat(16)}`;
+    const oldHash = await hashPassword('kettle-whistle', 'ab'.repeat(16), 3000);
+    assert.equal(await passwordMatches('kettle-whistle', oldSalt, oldHash), true,
+        'an account created under an older cost can no longer sign in');
+    assert.equal(await passwordMatches('wrong', oldSalt, oldHash), false);
+});
+
+test('a salt with no cost on it, or a damaged one, falls back to the default', () => {
+    assert.deepEqual(splitSalt('abcdef'), { iterations: PBKDF2_ITERATIONS, salt: 'abcdef' });
+    assert.deepEqual(splitSalt('nonsense$abcdef'), { iterations: PBKDF2_ITERATIONS, salt: 'abcdef' });
+    assert.deepEqual(splitSalt('-5$abcdef'), { iterations: PBKDF2_ITERATIONS, salt: 'abcdef' });
+    assert.deepEqual(splitSalt(null), { iterations: PBKDF2_ITERATIONS, salt: '' });
 });
 
 test('a hash is the full 256 bits, and stable for the same salt', async () => {
