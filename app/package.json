@@ -2,7 +2,7 @@
   "name": "ten-biz-game",
   "private": true,
   "scripts": {
-    "test": "node --test test/score.test.mjs test/sim.test.mjs test/game.test.mjs test/site.test.mjs",
+    "test": "node --test test/score.test.mjs test/sim.test.mjs test/game.test.mjs test/site.test.mjs test/tutor.test.mjs test/auth.test.mjs test/teacher.test.mjs test/phase4.test.mjs",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "db:init": "wrangler d1 execute ten-biz-game --remote --file=./schema.sql"
