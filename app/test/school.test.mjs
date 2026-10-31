@@ -3,14 +3,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../src/index.js';
 import { freshDb, client } from './d1.mjs';
-import { tempPassword, isAdminEmail, isHead, CODE_LENGTH } from '../src/auth.js';
+import { tempPassword, isAdminEmail, isHead, adminPassOk, CODE_LENGTH } from '../src/auth.js';
 
 const ADMIN = 'boss@ten.net';
+const PASS = 'a-long-staff-passphrase';
+const WITH_PASS = { 'x-admin-pass': PASS };
 
 /** A school with a head, and whatever other teachers you ask for. */
 async function school({ admin = ADMIN, name = 'DAV Public School' } = {}) {
     const db = freshDb();
-    const env = { DB: db, ADMIN_EMAILS: admin };
+    const env = { DB: db, ADMIN_EMAILS: admin, ADMIN_PASSWORD: PASS };
     const head = client(worker, env);
     await head.go('/api/teacher/signup',
         { email: 'head@dav.edu', password: 'longenough1', name: 'R Nair' });
@@ -305,7 +307,7 @@ test('an admin sees every school and every teacher with no school', async () => 
     const solo = client(worker, env);
     await solo.go('/api/teacher/signup', { email: 'solo@x.edu', password: 'longenough7', name: 'Solo' });
 
-    const boss = client(worker, env);
+    const boss = client(worker, env, WITH_PASS);
     await boss.go('/api/teacher/signup',
         { email: 'boss@ten.net', password: 'longenough8', name: 'TEN' });
 
@@ -323,7 +325,7 @@ test('an admin sees every school and every teacher with no school', async () => 
  */
 test('an admin can let a locked-out teacher back in', async () => {
     const { env } = await school({ admin: 'boss@ten.net' });
-    const boss = client(worker, env);
+    const boss = client(worker, env, WITH_PASS);
     await boss.go('/api/teacher/signup',
         { email: 'boss@ten.net', password: 'longenough8', name: 'TEN' });
 
@@ -347,7 +349,7 @@ test('a reset drops every session that teacher had', async () => {
     const { env, head } = await school({ admin: 'boss@ten.net' });
     assert.equal((await head.go('/api/teacher/me')).status, 200);
 
-    const boss = client(worker, env);
+    const boss = client(worker, env, WITH_PASS);
     await boss.go('/api/teacher/signup',
         { email: 'boss@ten.net', password: 'longenough8', name: 'TEN' });
     const list = await (await boss.go('/api/admin/teachers')).json();
@@ -375,7 +377,7 @@ test('a temporary password is readable but not guessable', async () => {
 
 test('settings are public to read and admin-only to write', async () => {
     const { env, head } = await school({ admin: 'boss@ten.net' });
-    const boss = client(worker, env);
+    const boss = client(worker, env, WITH_PASS);
     await boss.go('/api/teacher/signup',
         { email: 'boss@ten.net', password: 'longenough8', name: 'TEN' });
 
@@ -396,7 +398,7 @@ test('settings are public to read and admin-only to write', async () => {
 
 test('only the known settings keys are stored or returned', async () => {
     const { db, env } = await school({ admin: 'boss@ten.net' });
-    const boss = client(worker, env);
+    const boss = client(worker, env, WITH_PASS);
     await boss.go('/api/teacher/signup',
         { email: 'boss@ten.net', password: 'longenough8', name: 'TEN' });
 
@@ -412,4 +414,100 @@ test('isHead only says yes to a head', () => {
     assert.equal(isHead(null), false);
     assert.equal(isHead(undefined), false);
     assert.equal(isHead({}), false);
+});
+
+/* ── The second lock on the staff page ───────────────────────────────── */
+
+/** A signed-in account on the admin list, with and without the passphrase. */
+async function staff(env) {
+    const base = { email: ADMIN, password: 'longenough8', name: 'TEN' };
+    const withPass = client(worker, env, WITH_PASS);
+    await withPass.go('/api/teacher/signup', base);
+    const noPass = client(worker, env);
+    await noPass.go('/api/teacher/login', { email: base.email, password: base.password });
+    return { withPass, noPass };
+}
+
+/**
+ * THE POINT OF THIS TEST.
+ *
+ * Admin can reset any teacher's password, so it is the one place worth two
+ * independent secrets. Neither is in the database: a stolen `teacher` table,
+ * every hash in it, must still not open this page.
+ */
+test('the staff page needs the passphrase as well as the account', async () => {
+    const { env } = await school({ admin: ADMIN });
+    const { withPass, noPass } = await staff(env);
+
+    assert.equal((await withPass.go('/api/admin/schools')).status, 200);
+
+    // Signed in as the right address, no passphrase: shut.
+    assert.equal((await noPass.go('/api/admin/schools')).status, 404);
+    assert.equal((await noPass.go('/api/admin/teachers')).status, 404);
+    assert.equal((await noPass.go('/api/admin/reset', { teacherId: 'x' })).status, 404);
+    assert.equal((await noPass.go('/api/settings', { price: 'free' })).status, 404);
+});
+
+test('a wrong passphrase is as good as none', async () => {
+    const { env } = await school({ admin: ADMIN });
+    const wrong = client(worker, env, { 'x-admin-pass': 'a-long-wrong-passphrase' });
+    await wrong.go('/api/teacher/signup', { email: ADMIN, password: 'longenough8', name: 'TEN' });
+
+    assert.equal((await wrong.go('/api/admin/schools')).status, 404);
+
+    // Near misses, in case anything ever compares loosely. Note these are not
+    // whitespace: HTTP strips trailing spaces from a header value, so padding
+    // the passphrase with one arrives as an exact match and always will.
+    for (const nearly of [PASS + 'x', PASS.slice(0, -1), PASS.toUpperCase()]) {
+        const c = client(worker, env, { 'x-admin-pass': nearly });
+        c.jar.set('tsid', wrong.jar.get('tsid'));
+        assert.equal((await c.go('/api/admin/schools')).status, 404,
+            `"${nearly}" was accepted`);
+    }
+});
+
+test('the passphrase alone opens nothing', async () => {
+    // An ordinary teacher who somehow learns it is still not staff.
+    const { env, sch } = await school({ admin: ADMIN });
+    const rao = await colleague(env, sch);
+    const sneaky = client(worker, env, WITH_PASS);
+    sneaky.jar.set('tsid', rao.jar.get('tsid'));
+
+    assert.equal((await sneaky.go('/api/admin/schools')).status, 404);
+    assert.equal((await sneaky.go('/api/settings', { price: 'free' })).status, 404);
+});
+
+/**
+ * Both locks fail closed. A missing passphrase must mean nobody, exactly as a
+ * missing address list does — this is the failure that would hand the
+ * reset-any-password button to anyone who could guess an email.
+ */
+test('an unset or feeble passphrase lets nobody in', async () => {
+    for (const configured of [undefined, '', 'short']) {
+        const db = freshDb();
+        const env = { DB: db, ADMIN_EMAILS: ADMIN, ADMIN_PASSWORD: configured };
+        const boss = client(worker, env, { 'x-admin-pass': String(configured ?? '') });
+        await boss.go('/api/teacher/signup', { email: ADMIN, password: 'longenough8', name: 'TEN' });
+
+        assert.equal((await boss.go('/api/admin/schools')).status, 404,
+            `ADMIN_PASSWORD = ${JSON.stringify(configured)} let someone in`);
+    }
+});
+
+test('adminPassOk refuses anything that is not an exact match', () => {
+    assert.equal(adminPassOk('a-long-staff-passphrase', 'a-long-staff-passphrase'), true);
+    assert.equal(adminPassOk('a-long-staff-passphras', 'a-long-staff-passphrase'), false);
+    assert.equal(adminPassOk('A-LONG-STAFF-PASSPHRASE', 'a-long-staff-passphrase'), false);
+    assert.equal(adminPassOk('', ''), false);            // unset is not a passphrase
+    assert.equal(adminPassOk(undefined, undefined), false);
+    assert.equal(adminPassOk('1234567', '1234567'), false, 'seven characters was accepted');
+    assert.equal(adminPassOk('12345678', '12345678'), true);
+});
+
+test('the staff link still shows for the right address, before any passphrase', async () => {
+    // The page has to know to ask. Knowing an address qualifies is not access.
+    const { env } = await school({ admin: ADMIN });
+    const { noPass } = await staff(env);
+    assert.equal((await (await noPass.go('/api/teacher/me')).json()).isAdmin, true);
+    assert.equal((await noPass.go('/api/admin/schools')).status, 404);
 });

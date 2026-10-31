@@ -7,6 +7,7 @@ import {
     makeCode, normaliseCode, CODE_LENGTH, newPasswordRecord, passwordMatches,
     checkSignup, cleanFirstName, newToken, sessionExpiry, isExpired,
     summariseStudent, classPatterns, toCsv, tempPassword, isAdminEmail, isHead,
+    adminPassOk,
     MIN_PASSWORD,
 } from './auth.js';
 
@@ -568,6 +569,18 @@ async function freshSchoolCode(env, attempts = 8) {
     throw new Error('Could not allocate a school code. Try again.');
 }
 
+/**
+ * Both locks, asked as one question so no route can check only half.
+ *
+ * The passphrase travels in a header rather than a cookie: there is no admin
+ * session to steal or fix, and closing the tab ends it. For a page one person
+ * opens occasionally, re-typing it is the right trade.
+ */
+function adminOk(request, env, me) {
+    return isAdminEmail(me.email, env.ADMIN_EMAILS)
+        && adminPassOk(request.headers.get('x-admin-pass'), env.ADMIN_PASSWORD);
+}
+
 const SETTING_KEYS = ['price', 'contact_email'];
 
 async function settingsOf(db) {
@@ -691,6 +704,9 @@ async function teacherRoutes(request, env, url, path) {
             school: staff
                 ? { name: staff.name, role: staff.role, code: isHead(staff) ? staff.code : null }
                 : null,
+            // Whether this ADDRESS may ask — not whether they have the
+            // passphrase. The staff link appears; the page still does not
+            // open without the second secret.
             isAdmin: isAdminEmail(me.email, env.ADMIN_EMAILS),
             classes: (classes.results ?? []).map((c) => ({ ...c, mine: !!c.mine })),
         });
@@ -899,7 +915,7 @@ async function teacherRoutes(request, env, url, path) {
     // so it carries its own check rather than living in that block where it
     // would never be reached.
     if (path === '/api/settings' && post) {
-        if (!isAdminEmail(me.email, env.ADMIN_EMAILS)) return say({ error: 'Not found.' }, 404);
+        if (!adminOk(request, env, me)) return say({ error: 'Not found.' }, 404);
         const body = await readBody(request);
         const writes = SETTING_KEYS
             .filter((k) => typeof body?.[k] === 'string')
@@ -914,14 +930,19 @@ async function teacherRoutes(request, env, url, path) {
 
     /* ── TEN staff ───────────────────────────────────────────────────────
      *
-     * Who gets in is read from a Worker secret, never from the database, so
-     * no request can promote anybody. An unset secret means nobody — a page
-     * that opens up when its configuration is missing is worse than one that
-     * is simply shut.
+     * Two locks, and neither is in the database.
+     *
+     * ADMIN_EMAILS says who may ask. ADMIN_PASSWORD is a second secret the
+     * page sends with every request. Both live only in the Worker's
+     * configuration, so no request can promote anybody and a stolen `teacher`
+     * table — every hash in it — still does not open this page.
+     *
+     * Either one unset means nobody gets in. A lock that opens when its key
+     * is missing is not a lock.
      * ─────────────────────────────────────────────────────────────────── */
 
     if (path.startsWith('/api/admin')) {
-        if (!isAdminEmail(me.email, env.ADMIN_EMAILS)) {
+        if (!adminOk(request, env, me)) {
             return say({ error: 'Not found.' }, 404);     // not 403: do not confirm the page exists
         }
 
