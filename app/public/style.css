@@ -497,21 +497,51 @@ input[type=text], input[type=email], input[type=password] {
 
 /* ── The class table ──────────────────────────────────────────────────── */
 
-.board { list-style: none; padding: 0; margin: 18px 0 0; counter-reset: none }
-.board li { display: flex; align-items: center; gap: 14px; padding: 11px 12px;
+/* `.ranks`, not `.board` — the teacher page's <main class="board"> already
+   owns that name, and a second rule for it silently stripped that page of its
+   centring and padding. One class name, one meaning. */
+.ranks { list-style: none; padding: 0; margin: 18px 0 0 }
+.ranks li { display: flex; align-items: center; gap: 14px; padding: 11px 12px;
             border-bottom: 1px solid var(--rule) }
-.board .pos { width: 2ch; text-align: right; color: var(--dim); font-weight: 700;
+.ranks .pos { width: 2ch; text-align: right; color: var(--dim); font-weight: 700;
               font-variant-numeric: tabular-nums }
-.board .who { flex: 1; font-weight: 600 }
-.board .who em { color: var(--dim); font-weight: 400; font-style: normal }
-.board .num { font-variant-numeric: tabular-nums; font-weight: 700 }
-.board .me { background: color-mix(in srgb, var(--accent) 8%, transparent);
+.ranks .who { flex: 1; font-weight: 600 }
+.ranks .who em { color: var(--dim); font-weight: 400; font-style: normal }
+.ranks .num { font-variant-numeric: tabular-nums; font-weight: 700 }
+.ranks .me { background: color-mix(in srgb, var(--accent) 8%, transparent);
              border-radius: 8px }
 /* Your own line when you are past tenth — separated, never a "worst" list. */
-.board .adrift { margin-top: 10px; border-top: 2px solid var(--rule); border-bottom: none }
-.board .empty-row { color: var(--dim); justify-content: center; border: none; padding: 30px 0 }
+.ranks .adrift { margin-top: 10px; border-top: 2px solid var(--rule); border-bottom: none }
+.ranks .empty-row { color: var(--dim); justify-content: center; border: none; padding: 30px 0 }
 
 @media (max-width: 600px) {
     .up { flex-direction: column; align-items: flex-start; gap: 10px }
     .up button { width: 100% }
+}
+
+/* ── Schools, staff and the TEN page ──────────────────────────────────── */
+
+.school { padding: 20px 22px }
+.staff { list-style: none; padding: 0; margin: 16px 0 0 }
+.staff li { display: flex; justify-content: space-between; gap: 14px; padding: 9px 0;
+            border-bottom: 1px solid var(--rule); font-size: .96rem }
+.staff li:last-child { border-bottom: none }
+.staff em { color: var(--accent); font-style: normal; font-weight: 700;
+            font-size: .74rem; letter-spacing: .08em; text-transform: uppercase }
+
+.pwbox { margin-top: 20px; border-top: 1px solid var(--rule); padding-top: 14px }
+.pwbox summary { cursor: pointer; font-weight: 600; font-size: .94rem; color: var(--dim) }
+.pwbox summary:hover { color: var(--ink) }
+.pwbox[open] summary { margin-bottom: 4px }
+
+/* Row actions. Quiet until you want them — a roster is for reading first. */
+.roster .fix { text-align: right; white-space: nowrap }
+.roster .fix button { background: none; border: 1px solid var(--rule); border-radius: 7px;
+                      padding: 5px 10px; font: inherit; font-size: .82rem; color: var(--dim);
+                      cursor: pointer; margin-left: 6px }
+.roster .fix button:hover { border-color: var(--accent); color: var(--accent) }
+.roster tr:hover .fix button { border-color: var(--dim) }
+
+@media (max-width: 700px) {
+    .roster .fix { display: none }      /* a phone is for reading the roster */
 }

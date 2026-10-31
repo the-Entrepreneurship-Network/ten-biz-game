@@ -10,6 +10,7 @@ const HOME = readFileSync(new URL('../public/index.html', import.meta.url), 'utf
 const PLAY = readFileSync(new URL('../public/play.html', import.meta.url), 'utf8');
 const TEACHER = readFileSync(new URL('../public/teacher.html', import.meta.url), 'utf8');
 const CSS = readFileSync(new URL('../public/style.css', import.meta.url), 'utf8');
+const ADMIN = readFileSync(new URL('../public/admin.html', import.meta.url), 'utf8');
 
 /**
  * Lift a function out of a page by counting braces.
@@ -249,4 +250,71 @@ test('the class table is a section inside main, like every other screen', () => 
     assert.ok(/<section id="boardCard"/.test(PLAY), '#boardCard is not a <section>');
     const main = PLAY.slice(PLAY.indexOf('<main class="game">'), PLAY.indexOf('</main>'));
     assert.ok(main.includes('id="boardCard"'), 'the class table is outside <main>');
+});
+
+/* ── The school and staff pages ──────────────────────────────────────── */
+
+test('admin.html has every element its script reaches for', () => {
+    const script = ADMIN.slice(ADMIN.indexOf('<script>'));
+    const ids = [...new Set([...script.matchAll(/\$\(['"]([\w-]+)['"]\)/g)].map((m) => m[1]))];
+    assert.ok(ids.length > 8, 'extracted suspiciously few ids — the regex is wrong');
+    for (const id of ids) {
+        assert.ok(new RegExp(`id="${id}"`).test(ADMIN), `admin.html is missing #${id}`);
+    }
+});
+
+test('teacher.html still has every element its script reaches for', () => {
+    const script = TEACHER.slice(TEACHER.indexOf('<script>'));
+    const ids = [...new Set([...script.matchAll(/\$\(['"]([\w-]+)['"]\)/g)].map((m) => m[1]))];
+    for (const id of ids) {
+        assert.ok(new RegExp(`id="${id}"`).test(TEACHER), `teacher.html is missing #${id}`);
+    }
+});
+
+test('the TEN staff page is served, and starts shut', () => {
+    assert.equal(PAGES['/admin'], '/admin.html');
+    // Both views hidden until the API says which one to show. A page that
+    // renders the admin tables first and hides them after would flash every
+    // school's name at anyone who opened the URL.
+    assert.ok(/<main class="sheet hidden" id="shutView">/.test(ADMIN), 'the shut view is not hidden');
+    assert.ok(/<main class="board hidden" id="adminView">/.test(ADMIN), 'the admin view starts visible');
+    assert.ok(ADMIN.includes('name="robots" content="noindex"'), 'the staff page invites search engines');
+});
+
+/**
+ * The landing page must read correctly before any request finishes, and must
+ * survive the request failing. A price that renders blank while waiting is a
+ * page that sells nothing to anyone on a slow connection.
+ */
+test('the landing page says a price before it asks for one', () => {
+    const line = /<li id="priceLine">([^<]+)<\/li>/.exec(HOME);
+    assert.ok(line, 'no price line to fill in');
+    assert.ok(line[1].trim().length > 8, 'the written-in price is empty');
+    assert.ok(/id="askLink"[^>]*href="mailto:[^"]+@[^"]+"/.test(HOME),
+        'the contact button has no address written in');
+    assert.ok(/\.catch\(/.test(HOME.slice(HOME.indexOf("fetch('/api/settings')"))),
+        'a failed settings request is not caught');
+});
+
+/**
+ * TWICE NOW.
+ *
+ * `.why` was the tutor's answer box and a roster cell, which tinted every row.
+ * `.board` was the teacher page's <main> and the game's leaderboard list, and
+ * the second rule stripped that page of its centring and padding — the page
+ * still rendered, just jammed against the left edge.
+ *
+ * Both were found by looking at a screenshot, not by a failing test. One
+ * class name, one meaning, checked here.
+ */
+test('no class name is defined twice in the stylesheet', () => {
+    const seen = new Map();
+    const dupes = [];
+    for (const m of CSS.matchAll(/^\.([a-zA-Z][\w-]*)\s*\{/gm)) {
+        if (seen.has(m[1])) dupes.push(m[1]);
+        seen.set(m[1], true);
+    }
+    assert.ok(seen.size > 20, 'parsed suspiciously few rules — the regex is wrong');
+    assert.deepEqual(dupes, [],
+        `defined twice: ${dupes.join(', ')} — the later rule silently overrides the first`);
 });

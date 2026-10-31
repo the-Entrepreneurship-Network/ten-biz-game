@@ -112,3 +112,44 @@ CREATE TABLE IF NOT EXISTS upgrade (
     bought_at  TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (run_id, kind)
 );
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- Phase 6: schools.
+--
+-- A teacher can belong to a school, or to nothing at all. Every teacher who
+-- signed up before this existed has no `staff` row and keeps working exactly
+-- as they did — a lone teacher is a supported case, not a broken one.
+--
+-- Still CREATE TABLE IF NOT EXISTS with no ALTER, so `db:init` stays safe to
+-- re-run against the live database.
+-- ─────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS school (
+    id         TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    -- Teachers join a school the same way students join a class: a code
+    -- somebody reads out. No email service exists yet, and a join code needs
+    -- none.
+    code       TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Who works where. `role` is 'head' or 'teacher'; the teacher who creates the
+-- school is its first head.
+CREATE TABLE IF NOT EXISTS staff (
+    teacher_id TEXT PRIMARY KEY REFERENCES teacher(id),
+    school_id  TEXT NOT NULL REFERENCES school(id),
+    role       TEXT NOT NULL DEFAULT 'teacher',
+    joined_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS staff_by_school ON staff(school_id);
+
+-- The few bits of site text that change without a deploy: the price, the
+-- address schools write to. Deliberately a handful of known keys and not a
+-- content system — four pages do not need one.
+CREATE TABLE IF NOT EXISTS setting (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);

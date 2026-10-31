@@ -113,6 +113,41 @@ export async function passwordMatches(password, saltHex, expectedHash) {
     return timingSafeEqual(actual, expectedHash);
 }
 
+/**
+ * A password an admin reads down the phone to a locked-out teacher.
+ *
+ * Same unambiguous alphabet as a join code, in groups of four, because it is
+ * spoken aloud before it is ever typed. Three groups is about 10^17
+ * possibilities — it is random, not memorable, and it is meant to be changed
+ * once the teacher is back in.
+ */
+export function tempPassword(rand = randomBytes) {
+    const bytes = rand(12);
+    let out = '';
+    for (let i = 0; i < 12; i += 1) {
+        if (i && i % 4 === 0) out += '-';
+        out += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
+    }
+    return out;
+}
+
+/**
+ * Who is allowed into the TEN staff page.
+ *
+ * Read from a Worker secret rather than a table, so promoting someone is a
+ * deliberate act outside the app and no request can ever grant it. Unset
+ * means nobody — an admin page that opens up when its configuration is
+ * missing is worse than one that is simply closed.
+ */
+export function isAdminEmail(email, configured) {
+    const list = String(configured ?? '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+    const who = String(email ?? '').trim().toLowerCase();
+    return !!who && list.includes(who);
+}
+
+/** Heads can see the whole school; teachers see their own classes. */
+export const isHead = (staffRow) => staffRow?.role === 'head';
+
 /* ── What we refuse to accept ────────────────────────────────────────── */
 
 export const MIN_PASSWORD = 8;
