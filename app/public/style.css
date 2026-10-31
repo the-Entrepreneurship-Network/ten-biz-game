@@ -413,3 +413,105 @@ input[type=text], input[type=email], input[type=password] {
                        font-weight: 700 }
 
 .empty { text-align: center; padding: 48px 20px; color: var(--dim) }
+
+/* ── The shop ─────────────────────────────────────────────────────────── */
+
+.shopcard { padding: 0; overflow: hidden }
+.shop { display: block; width: 100%; height: auto; background: var(--wash) }
+
+/* Parts are drawn once and revealed by a class on the root, so buying
+   something repaints the shop without fetching anything. */
+.shop .part { opacity: 0; transform: translateY(6px); transition: opacity .35s, transform .35s }
+.shop.has-signboard .sign,
+.shop.has-fridge .fridge,
+.shop.has-crowd .crowd { opacity: 1; transform: none }
+
+.shop .counter { fill: var(--ink) }
+.shop .counter-top { fill: var(--accent) }
+.shop .plank { stroke: var(--paper); stroke-width: 1; opacity: .25 }
+.shop .awning rect { fill: var(--ink) }
+.shop .awning .s1 { fill: var(--accent) }
+.shop .awning .s2 { fill: var(--paper); stroke: var(--ink); stroke-width: 1.5 }
+.shop .sign rect { fill: var(--gold) }
+.shop .sign text { fill: var(--paper); font: 700 13px/1 Mukta, sans-serif; letter-spacing: .14em }
+.shop .kettle rect { fill: var(--dim) }
+.shop .kettle path { fill: none; stroke: var(--dim); stroke-width: 2.5; stroke-linecap: round }
+.shop .kettle .steam { stroke: var(--rule); stroke-width: 2 }
+.shop .fridge rect { fill: var(--paper); stroke: var(--ink); stroke-width: 2.5 }
+.shop .fridge line { stroke: var(--ink); stroke-width: 2.5 }
+.shop .fridge .handle { stroke: var(--accent); stroke-width: 3; stroke-linecap: round }
+.shop .crowd circle, .shop .crowd rect { fill: var(--dim) }
+.shop .ground { stroke: var(--rule); stroke-width: 2 }
+
+/* A bigger stall is wider, which is the only honest way to draw it. */
+.shop.has-bigger .awning, .shop.has-bigger .counter,
+.shop.has-bigger .counter-top { transform: scaleX(1.12); transform-origin: 160px 0 }
+
+@media (prefers-reduced-motion: reduce) { .shop .part { transition: none } }
+
+.owned { margin: 0; padding: 12px 18px 14px; font-size: .94rem; color: var(--dim);
+         border-top: 1px solid var(--rule) }
+
+/* ── Spending coins ───────────────────────────────────────────────────── */
+
+.chart-head { display: flex; justify-content: space-between; align-items: baseline;
+              gap: 14px; flex-wrap: wrap }
+.chart-head h3 { font-size: 1.05rem; margin: 0 }
+.coinbal { font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums }
+
+.shopkeep { margin-top: 14px }
+.upgrades { display: grid; gap: 10px; margin-top: 14px }
+.up { display: flex; justify-content: space-between; align-items: center; gap: 14px;
+      padding: 12px 14px; border: 1px solid var(--rule); border-radius: 10px }
+.up small { color: var(--dim) }
+.up button { white-space: nowrap; padding: 8px 15px; font-size: .9rem }
+.up button[disabled] { opacity: .4; cursor: not-allowed }
+.up-have { border-color: color-mix(in srgb, var(--profit) 40%, transparent);
+           background: color-mix(in srgb, var(--profit) 7%, transparent) }
+.up-tag { color: var(--profit); font-weight: 700; font-size: .88rem; white-space: nowrap }
+
+/* ── The order that asks a question ───────────────────────────────────── */
+
+.offer { margin-top: 18px; padding: 16px 18px; border-radius: 12px;
+         border: 2px solid var(--gold);
+         background: color-mix(in srgb, var(--gold) 8%, transparent) }
+.offer-tag { margin: 0; font-size: .74rem; letter-spacing: .12em; text-transform: uppercase;
+             font-weight: 700; color: var(--gold) }
+.offer-ask { margin: 8px 0 0; font-size: 1.04rem }
+.offer-note { margin: 8px 0 0; font-size: .92rem; color: var(--dim) }
+.offer-pick { display: flex; gap: 20px; margin-top: 14px; flex-wrap: wrap }
+.offer-pick label { display: flex; align-items: center; gap: 8px; cursor: pointer;
+                    font-weight: 600; font-size: .96rem }
+
+/* ── Cash over the weeks ──────────────────────────────────────────────── */
+
+.chartcard { margin-top: 14px }
+.spark { width: 100%; height: 70px; margin-top: 12px; overflow: visible }
+.spark .line { fill: none; stroke: var(--accent); stroke-width: 2.5;
+               stroke-linejoin: round; stroke-linecap: round;
+               vector-effect: non-scaling-stroke }
+.spark .zero { stroke: var(--rule); stroke-width: 1; stroke-dasharray: 4 4;
+               vector-effect: non-scaling-stroke }
+.spark .dot { fill: var(--profit) }
+.spark .dot.neg { fill: var(--accent) }
+
+/* ── The class table ──────────────────────────────────────────────────── */
+
+.board { list-style: none; padding: 0; margin: 18px 0 0; counter-reset: none }
+.board li { display: flex; align-items: center; gap: 14px; padding: 11px 12px;
+            border-bottom: 1px solid var(--rule) }
+.board .pos { width: 2ch; text-align: right; color: var(--dim); font-weight: 700;
+              font-variant-numeric: tabular-nums }
+.board .who { flex: 1; font-weight: 600 }
+.board .who em { color: var(--dim); font-weight: 400; font-style: normal }
+.board .num { font-variant-numeric: tabular-nums; font-weight: 700 }
+.board .me { background: color-mix(in srgb, var(--accent) 8%, transparent);
+             border-radius: 8px }
+/* Your own line when you are past tenth — separated, never a "worst" list. */
+.board .adrift { margin-top: 10px; border-top: 2px solid var(--rule); border-bottom: none }
+.board .empty-row { color: var(--dim); justify-content: center; border: none; padding: 30px 0 }
+
+@media (max-width: 600px) {
+    .up { flex-direction: column; align-items: flex-start; gap: 10px }
+    .up button { width: 100% }
+}

@@ -1,4 +1,4 @@
-import { simulateWeek, BUSINESSES, EVENTS } from './sim.js';
+import { simulateWeek, BUSINESSES, EVENTS, UPGRADES, effectsOf } from './sim.js';
 
 /**
  * One run of the game: eight weeks of a small business.
@@ -30,6 +30,7 @@ const WEIGHTED = [
     'competitor',
     'costly_milk',
     'exam_week',
+    'wedding',
 ];
 
 export function eventFor(runId, week) {
@@ -45,6 +46,32 @@ export function eventFor(runId, week) {
 /** Week 1 is always ordinary — nobody should lose on their first go to weather. */
 export function eventForWeek(runId, week) {
     return week <= 1 ? 'normal' : eventFor(runId, week);
+}
+
+/**
+ * The bulk order, sized from the business itself.
+ *
+ * Roughly 1.6× a normal week's demand at 70% of the usual price. Those two
+ * numbers are the whole decision: it is more units than you would ever sell
+ * on the street, at a price that leaves you much less on each one — and you
+ * have to buy all that stock up front to serve it.
+ *
+ * ponytail: one offer shape for every business. A second kind of card can
+ * have its own function when there is a reason for one.
+ */
+export function offerFor(business) {
+    const b = BUSINESSES[business];
+    if (!b) return null;
+    return { qty: Math.round(b.baseDemand * 1.6), price: Math.round(b.refPrice * 0.7) };
+}
+
+/**
+ * The offer waiting this week, if any — and unlike the weather, the student
+ * is told before they decide. A bulk order that arrived after you had already
+ * bought your stock would not be a decision at all.
+ */
+export function offerForWeek(runId, week, business) {
+    return EVENTS[eventForWeek(runId, week)]?.offer ? offerFor(business) : null;
 }
 
 /**
@@ -64,6 +91,9 @@ export function playWeek(run, decision) {
         stockBought: decision && decision.stock,
         cashBefore: run.cash,
         event,
+        upgrades: run.upgrades || [],
+        offer: offerForWeek(run.id, run.week, business),
+        takeOffer: !!(decision && decision.takeOffer),
     });
 
     const cash = result.cashAfter;
@@ -112,4 +142,4 @@ export function businessChoices() {
     }));
 }
 
-export { EVENTS };
+export { EVENTS, UPGRADES, effectsOf };

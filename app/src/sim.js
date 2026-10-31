@@ -25,7 +25,44 @@ export const EVENTS = {
     competitor:  { label: 'A new shop opened next door',          demand: 0.75, cost: 1.0  },
     costly_milk: { label: 'Supplier raised prices',               demand: 1.0,  cost: 1.3  },
     exam_week:   { label: 'School exams — students stay home',    demand: 0.8,  cost: 1.0  },
+    // The only event that asks instead of tells. Everything else happens to
+    // the student; this one makes them choose volume against margin, which is
+    // the question every real shop answers every week.
+    wedding:     { label: 'A wedding wants a bulk order',         demand: 1.0,  cost: 1.0,  offer: true },
 };
+
+/**
+ * What coins buy.
+ *
+ * Until now coins only accumulated — a reward with nothing to spend it on is
+ * not a reward. These are the shop equivalent of building houses: profit goes
+ * back into capacity.
+ *
+ * `bigger` deliberately raises rent as well as demand. A growth option with
+ * no downside is a cheat code; one that raises your fixed costs is the actual
+ * lesson, and it is the only upgrade a student can regret buying.
+ */
+export const UPGRADES = {
+    signboard: { name: 'Signboard',    cost: 30, blurb: 'People can see you from the road.',
+                 demand: 1.15, rent: 1,   keeps: false },
+    fridge:    { name: 'Fridge',       cost: 50, blurb: 'Nothing you make goes to waste.',
+                 demand: 1,    rent: 1,   keeps: true  },
+    bigger:    { name: 'Bigger stall', cost: 80, blurb: 'Room for more — and more rent.',
+                 demand: 1.30, rent: 1.5, keeps: false },
+};
+
+/** Every upgrade a shop owns, collapsed into the three numbers a week needs. */
+export function effectsOf(upgrades = []) {
+    let demand = 1, rent = 1, keeps = false;
+    for (const key of upgrades) {
+        const u = UPGRADES[key];
+        if (!u) continue;                     // an unknown key changes nothing
+        demand *= u.demand;
+        rent *= u.rent;
+        keeps = keeps || u.keeps;
+    }
+    return { demand, rent, keeps };
+}
 
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 const money = (n) => Math.round(n);
@@ -37,7 +74,7 @@ const money = (n) => Math.round(n);
  * roughly doubles; double it and demand collapses. Not economics-accurate —
  * it is monotonic, obvious, and survives a student setting price to 0 or 9999.
  */
-export function demandAt(business, price, eventKey) {
+export function demandAt(business, price, eventKey, upgrades = []) {
     const b = BUSINESSES[business];
     if (!b) return 0;
     const p = Number(price);
@@ -45,7 +82,8 @@ export function demandAt(business, price, eventKey) {
 
     const ev = EVENTS[eventKey] || EVENTS.normal;
     const priceFactor = clamp(1 + ((b.refPrice - p) / b.refPrice) * 1.2, 0, 2.5);
-    return Math.max(0, Math.round(b.baseDemand * priceFactor * ev.demand));
+    return Math.max(0, Math.round(
+        b.baseDemand * priceFactor * ev.demand * effectsOf(upgrades).demand));
 }
 
 /**
@@ -55,49 +93,64 @@ export function demandAt(business, price, eventKey) {
  * student can post a profit and still run out of money. That gap is the whole
  * point of level 5.
  */
-export function simulateWeek({ business, price, stockBought, cashBefore = 0, event = 'normal' }) {
+export function simulateWeek({
+    business, price, stockBought, cashBefore = 0, event = 'normal',
+    upgrades = [], offer = null, takeOffer = false,
+}) {
     const b = BUSINESSES[business];
     if (!b) throw new Error('unknown business: ' + business);
 
     const ev = EVENTS[event] || EVENTS.normal;
+    const fx = effectsOf(upgrades);
     const p = Math.max(0, Number(price) || 0);
     const bought = Math.max(0, Math.floor(Number(stockBought) || 0));
 
+    const perishable = b.perishable && !fx.keeps;     // a fridge changes this
+    const fixed = money(b.weeklyFixed * fx.rent);     // a bigger stall costs more rent
     const unitCost = money(b.unitCost * ev.cost);
     const stockCost = bought * unitCost;              // paid now, whether or not it sells
-    const wanted = demandAt(business, p, event);
-    const sold = Math.min(wanted, bought);
 
-    const revenue = sold * p;
-    const cogs = sold * unitCost;
-    const leftover = bought - sold;
+    // A bulk order is served first: they asked for a fixed number at a fixed
+    // price, and they are standing there. Whatever is left serves the street.
+    const deal = takeOffer && offer ? offer : null;
+    const bulkSold = deal ? Math.min(deal.qty, bought) : 0;
+    const bulkShort = deal ? deal.qty - bulkSold : 0;  // what you could not supply
+    const bulkRevenue = bulkSold * (deal ? deal.price : 0);
+
+    const wanted = demandAt(business, p, event, upgrades);
+    const sold = Math.min(wanted, bought - bulkSold);
+
+    const revenue = sold * p + bulkRevenue;
+    const cogs = (sold + bulkSold) * unitCost;
+    const leftover = bought - sold - bulkSold;
     // Perishable stock is thrown away; durable stock carries to next week.
-    const spoiled = b.perishable ? leftover : 0;
+    const spoiled = perishable ? leftover : 0;
     const wasted = spoiled * unitCost;
 
-    const profit = revenue - cogs - wasted - b.weeklyFixed;
-    const cashAfter = cashBefore - stockCost - b.weeklyFixed + revenue;
+    const profit = revenue - cogs - wasted - fixed;
+    const cashAfter = cashBefore - stockCost - fixed + revenue;
 
     return {
         event: ev.label,
         wanted, sold, leftover, spoiled,
         unitCost,
         revenue, cogs, wasted,
-        fixed: b.weeklyFixed,
+        fixed,
+        bulkSold, bulkShort, bulkRevenue,
         profit,
         cashBefore, cashAfter,
-        stockOut: wanted > bought,          // demand you could not serve
+        stockOut: wanted > bought - bulkSold,   // demand you could not serve
         bankrupt: cashAfter < 0,
-        carryStock: b.perishable ? 0 : leftover,
+        carryStock: perishable ? 0 : leftover,
     };
 }
 
 /** Units you must sell this week just to cover fixed costs. Level 4. */
-export function breakEvenUnits(business, price, event = 'normal') {
+export function breakEvenUnits(business, price, event = 'normal', upgrades = []) {
     const b = BUSINESSES[business];
     if (!b) return null;
     const unitCost = money(b.unitCost * (EVENTS[event] || EVENTS.normal).cost);
     const margin = Number(price) - unitCost;
     if (!(margin > 0)) return null;         // selling at or below cost never breaks even
-    return Math.ceil(b.weeklyFixed / margin);
+    return Math.ceil(money(b.weeklyFixed * effectsOf(upgrades).rent) / margin);
 }

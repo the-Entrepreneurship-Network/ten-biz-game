@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { demandAt, breakEvenUnits, BUSINESSES } from '../src/sim.js';
 import { PAGES } from '../src/index.js';
+import { UPGRADES } from '../src/sim.js';
 
 const HOME = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
 const PLAY = readFileSync(new URL('../public/play.html', import.meta.url), 'utf8');
@@ -196,4 +197,56 @@ test('hiding something hides it, even with an inline display', () => {
     // directly under the button whose job is to open it.
     assert.match(CSS, /\.hidden\s*\{\s*display:\s*none\s*!important\s*\}/,
         '.hidden does not beat an inline display');
+});
+
+/* ── The shop you can see ────────────────────────────────────────────── */
+
+/**
+ * Every upgrade has to be visible on the stall.
+ *
+ * The art is one SVG with every part already in it, revealed by a class. Add
+ * a fourth upgrade and the shop silently stops changing when you buy it — the
+ * page still renders, the coins still go, and nothing looks broken.
+ */
+test('every upgrade shows up on the drawn shop', () => {
+    for (const key of Object.keys(UPGRADES)) {
+        assert.ok(new RegExp(`has-${key}`).test(PLAY) || new RegExp(`has-${key}`).test(CSS),
+            `buying ${key} changes nothing on the stall`);
+        assert.ok(CSS.includes(`.shop.has-${key}`), `.has-${key} has no style, so it draws nothing`);
+    }
+});
+
+test('the shop art stays inside its own canvas', () => {
+    // A part drawn past the viewBox is simply not there, and only a
+    // screenshot would ever say so.
+    const svg = PLAY.slice(PLAY.indexOf('id="shopArt"'), PLAY.indexOf('</svg>'));
+    const [, w, h] = /viewBox="0 0 (\d+) (\d+)"/.exec(PLAY.slice(PLAY.indexOf('id="shopArt"'))) || [];
+    assert.ok(w && h, 'the shop has no viewBox');
+
+    for (const m of svg.matchAll(/x="(\d+)"\s+y="(\d+)"\s+width="(\d+)"\s+height="(\d+)"/g)) {
+        const [, x, y, rw, rh] = m.map(Number);
+        assert.ok(x + rw <= Number(w), `a part runs off the right edge (${x}+${rw} > ${w})`);
+        assert.ok(y + rh <= Number(h), `a part runs off the bottom (${y}+${rh} > ${h})`);
+    }
+});
+
+/**
+ * Saying yes to a bulk order commits a student's cash. The page must never
+ * arrive with that already chosen for them.
+ */
+test('the bulk order is never agreed to in advance', () => {
+    const pick = PLAY.slice(PLAY.indexOf('class="offer-pick"'), PLAY.indexOf('</div>', PLAY.indexOf('class="offer-pick"')));
+    const yes = pick.slice(pick.indexOf('value="yes"'), pick.indexOf('value="no"'));
+    assert.ok(!yes.includes('checked'), 'the page pre-agrees to the order');
+    assert.ok(pick.slice(pick.indexOf('value="no"')).includes('checked'), 'neither option is chosen');
+    assert.ok(PLAY.includes('class="offer hidden" id="offerCard"'),
+        'the offer card does not start hidden, so every week looks like an order week');
+});
+
+test('the class table is a section inside main, like every other screen', () => {
+    // show() hides `main > section`. A screen outside that set never hides,
+    // and the game renders two screens at once.
+    assert.ok(/<section id="boardCard"/.test(PLAY), '#boardCard is not a <section>');
+    const main = PLAY.slice(PLAY.indexOf('<main class="game">'), PLAY.indexOf('</main>'));
+    assert.ok(main.includes('id="boardCard"'), 'the class table is outside <main>');
 });

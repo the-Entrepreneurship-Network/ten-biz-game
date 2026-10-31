@@ -1,6 +1,8 @@
 import { pointsFor, levelFor } from './score.js';
-import { playWeek, newRun, coinsFor, businessChoices, WEEKS, EVENTS } from './game.js';
-import { breakEvenUnits, BUSINESSES } from './sim.js';
+import {
+    playWeek, newRun, coinsFor, businessChoices, WEEKS, EVENTS, offerForWeek,
+} from './game.js';
+import { breakEvenUnits, BUSINESSES, UPGRADES, effectsOf } from './sim.js';
 import {
     makeCode, normaliseCode, CODE_LENGTH, newPasswordRecord, passwordMatches,
     checkSignup, cleanFirstName, newToken, sessionExpiry, isExpired,
@@ -51,6 +53,33 @@ async function ensureStudent(db, id) {
         db.prepare('INSERT OR IGNORE INTO student (id) VALUES (?)').bind(id),
         db.prepare('INSERT OR IGNORE INTO progress (student_id) VALUES (?)').bind(id),
     ]);
+}
+
+/**
+ * The upgrades a run owns.
+ *
+ * Always loaded with the run, never separately — a week simulated without
+ * them silently prices the shop as though nothing had ever been bought.
+ */
+async function upgradesFor(db, runId) {
+    const rows = await db.prepare('SELECT kind FROM upgrade WHERE run_id = ?').bind(runId).all();
+    return (rows.results ?? []).map((r) => r.kind);
+}
+
+/**
+ * Coins earned and coins left.
+ *
+ * `earned` only ever counts positive events, so buying something cannot drop
+ * a student's level — spending is not un-learning. `balance` counts the
+ * negatives too, and is what the shop checks.
+ */
+async function coinsOf(db, studentId) {
+    const row = await db.prepare(
+        `SELECT COALESCE(SUM(points), 0) AS balance,
+                COALESCE(SUM(CASE WHEN points > 0 THEN points ELSE 0 END), 0) AS earned
+           FROM event WHERE student_id = ?`
+    ).bind(studentId).first();
+    return { balance: row?.balance ?? 0, earned: row?.earned ?? 0 };
 }
 
 async function readBody(request) {
@@ -128,8 +157,9 @@ async function handle(request, env) {
                    JOIN student s ON s.id = m.student_id
                   WHERE m.student_id = ?`
             ).bind(id).first();
+            const { balance } = await coinsOf(env.DB, id);
             return reply({
-                id, level: row?.level ?? 1, points: row?.points ?? 0,
+                id, level: row?.level ?? 1, points: row?.points ?? 0, balance,
                 className: cls?.name ?? null, name: cls?.student ?? null,
             });
         }
@@ -205,7 +235,12 @@ async function handle(request, env) {
             await env.DB.prepare(
                 'INSERT INTO run (id, student_id, business, week, cash, over) VALUES (?, ?, ?, ?, ?, 0)'
             ).bind(run.id, id, run.business, run.week, run.cash).run();
-            return reply({ run, info: BUSINESSES[run.business] });
+            return reply({
+                run: { ...run, upgrades: [] },
+                info: BUSINESSES[run.business],
+                offer: offerForWeek(run.id, run.week, run.business),
+                shop: { upgrades: [], effects: effectsOf([]), catalogue: UPGRADES },
+            });
         }
 
         // The run in progress, so closing the tab does not lose the game.
@@ -214,10 +249,26 @@ async function handle(request, env) {
                 'SELECT id, business, week, cash, over FROM run WHERE student_id = ? ORDER BY created_at DESC LIMIT 1'
             ).bind(id).first();
             if (!row) return reply({ run: null });
+            const owned = await upgradesFor(env.DB, row.id);
+            const past = await env.DB.prepare(
+                `SELECT payload FROM event
+                  WHERE student_id = ? AND kind = 'week_played' ORDER BY id`
+            ).bind(id).all();
+            const history = (past.results ?? [])
+                .map((r) => { try { return JSON.parse(r.payload); } catch (_) { return null; } })
+                .filter((w) => w && w.run === row.id && Number.isFinite(w.cash))
+                .map((w) => ({ week: w.week, cash: w.cash }));
             return reply({
-                run: { ...row, over: !!row.over },
+                run: { ...row, over: !!row.over, upgrades: owned },
                 info: BUSINESSES[row.business],
-                breakEven: breakEvenUnits(row.business, BUSINESSES[row.business].refPrice),
+                breakEven: breakEvenUnits(row.business, BUSINESSES[row.business].refPrice,
+                                          'normal', owned),
+                // Unlike the weather, a bulk order is known before you decide.
+                // One that arrived after you had bought your stock would not
+                // be a decision at all.
+                offer: offerForWeek(row.id, row.week, row.business),
+                shop: { upgrades: owned, effects: effectsOf(owned), catalogue: UPGRADES },
+                history,
             });
         }
 
@@ -231,9 +282,11 @@ async function handle(request, env) {
             if (!row) return reply({ error: 'start a run first' }, 400);
             if (row.over) return reply({ error: 'this run has finished' }, 409);
 
-            const out = playWeek({ ...row, over: !!row.over }, {
+            const owned = await upgradesFor(env.DB, row.id);
+            const out = playWeek({ ...row, over: !!row.over, upgrades: owned }, {
                 price: body?.price,
                 stock: body?.stock,
+                takeOffer: !!body?.takeOffer,
             });
             const coins = coinsFor(out.result);
 
@@ -246,26 +299,120 @@ async function handle(request, env) {
                     .bind(id, 'week_played', JSON.stringify({
                         run: row.id, week: row.week, event: out.eventKey,
                         price: body?.price, stock: body?.stock, profit: out.result.profit,
+                        // Cash, so the chart survives a refresh. Profit alone
+                        // cannot be added up into it — stock is paid for in a
+                        // different week from the one it sells in.
+                        cash: out.result.cashAfter,
                     }).slice(0, 2000), coins),
             ]);
 
-            const sum = await env.DB
-                .prepare('SELECT COALESCE(SUM(points), 0) AS points FROM event WHERE student_id = ?')
-                .bind(id).first();
-            const points = sum?.points ?? 0;
+            const { balance, earned } = await coinsOf(env.DB, id);
             await env.DB.prepare(
                 'UPDATE progress SET points = ?, level = ?, updated_at = datetime(\'now\') WHERE student_id = ?'
-            ).bind(points, levelFor(points), id).run();
+            ).bind(earned, levelFor(earned), id).run();
 
             return reply({
                 week: row.week,
                 result: out.result,
-                run: out.run,
+                run: { ...out.run, upgrades: owned },
                 over: out.over,
                 ending: out.ending,
                 coins,
-                points,
-                level: levelFor(points),
+                points: earned,
+                balance,
+                level: levelFor(earned),
+                offer: out.over ? null : offerForWeek(row.id, out.run.week, row.business),
+            });
+        }
+
+        /**
+         * Buy an upgrade.
+         *
+         * Every check happens here and nowhere else: the page can be lied to,
+         * and a shop that trusts the browser is a shop where coins are free.
+         * The spend is written as an event with negative points so the same
+         * SUM that pays coins out also takes them back — the balance cannot
+         * drift from the ledger because it IS the ledger.
+         */
+        if (path === '/api/upgrade' && request.method === 'POST') {
+            const body = await readBody(request);
+            const kind = String(body?.kind ?? '');
+            const item = UPGRADES[kind];
+            if (!item) return reply({ error: 'No such upgrade.' }, 400);
+
+            const row = await env.DB.prepare(
+                'SELECT id, over FROM run WHERE student_id = ? ORDER BY created_at DESC LIMIT 1'
+            ).bind(id).first();
+            if (!row) return reply({ error: 'Start a shop first.' }, 400);
+            if (row.over) return reply({ error: 'This run has finished.' }, 409);
+
+            const owned = await upgradesFor(env.DB, row.id);
+            if (owned.includes(kind)) return reply({ error: 'You already have that.' }, 409);
+
+            const { balance } = await coinsOf(env.DB, id);
+            if (balance < item.cost) {
+                return reply({ error: `That costs ${item.cost} coins and you have ${balance}.` }, 402);
+            }
+
+            // Both rows or neither: an upgrade nobody paid for, or coins taken
+            // for nothing, are each worse than the purchase simply failing.
+            await env.DB.batch([
+                env.DB.prepare('INSERT INTO upgrade (run_id, kind) VALUES (?, ?)').bind(row.id, kind),
+                env.DB.prepare(
+                    'INSERT INTO event (student_id, kind, payload, points) VALUES (?, ?, ?, ?)'
+                ).bind(id, 'upgrade_bought', JSON.stringify({ run: row.id, upgrade: kind }), -item.cost),
+            ]);
+
+            const after = await coinsOf(env.DB, id);
+            const nowOwned = [...owned, kind];
+            return reply({
+                ok: true, bought: kind, balance: after.balance,
+                upgrades: nowOwned, effects: effectsOf(nowOwned),
+            });
+        }
+
+        /**
+         * Where you stand in your class.
+         *
+         * Ranked on the best cash any of your shops ended with — the one
+         * number a fourteen-year-old reads without explanation.
+         *
+         * Only the top ten are returned, and there is deliberately no bottom
+         * of the table. A public list of who is losing money in a room of
+         * thirty teenagers is a punishment, not a lesson; the teacher already
+         * sees who is struggling, privately, on their own dashboard. Your own
+         * rank comes back whether or not you are in the ten, because being
+         * fourteenth is fine and being invisible is not.
+         */
+        if (path === '/api/leaderboard') {
+            const cls = await env.DB.prepare(
+                `SELECT c.id, c.name FROM membership m JOIN class c ON c.id = m.class_id
+                  WHERE m.student_id = ?`
+            ).bind(id).first();
+            // Playing without a class is the free demo, and it has no table.
+            if (!cls) return reply({ className: null, top: [], you: null });
+
+            const rows = await env.DB.prepare(
+                `SELECT r.student_id AS id, s.name, MAX(r.cash) AS best
+                   FROM run r
+                   JOIN membership m ON m.student_id = r.student_id
+                   JOIN student s ON s.id = r.student_id
+                  WHERE m.class_id = ? AND r.week > 1
+                  GROUP BY r.student_id
+                  ORDER BY best DESC`
+            ).bind(cls.id).all();
+
+            // ponytail: ranked in JS over one class — thirty rows, not thirty
+            // thousand. A window function when a class is a whole school.
+            const all = (rows.results ?? []).map((r, i) => ({
+                rank: i + 1, name: r.name || 'Unnamed', cash: r.best, you: r.id === id,
+            }));
+            const top = all.slice(0, 10).map(({ id: _drop, ...rest }) => rest);
+            return reply({
+                className: cls.name,
+                top,
+                you: all.find((r) => r.you) ?? null,
+                players: all.length,
             });
         }
 

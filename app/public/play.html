@@ -70,6 +70,65 @@
       <div><span>Coins</span><b id="hCoins">0</b></div>
     </div>
 
+    <!--
+      The shop, drawn in SVG so it costs nothing to ship and changes with what
+      has been bought. Every part is here from the start and revealed by a
+      class on the root — no second request, no sprite sheet, no image to load.
+    -->
+    <div class="card shopcard" style="margin-top:14px">
+      <svg class="shop" id="shopArt" viewBox="0 0 320 150" role="img" aria-labelledby="shopAlt">
+        <title id="shopAlt">Your shop</title>
+
+        <!-- signboard -->
+        <g class="part sign">
+          <rect x="86" y="6" width="148" height="26" rx="4"/>
+          <text x="160" y="24" text-anchor="middle" id="signText">TEA</text>
+        </g>
+
+        <!-- awning: five scallops, striped -->
+        <g class="awning">
+          <rect x="62" y="38" width="196" height="8" rx="2"/>
+          <path d="M62 46h39v16a19.5 19.5 0 0 1-39 0z" class="s1"/>
+          <path d="M101 46h39v16a19.5 19.5 0 0 1-39 0z" class="s2"/>
+          <path d="M140 46h39v16a19.5 19.5 0 0 1-39 0z" class="s1"/>
+          <path d="M179 46h39v16a19.5 19.5 0 0 1-39 0z" class="s2"/>
+          <path d="M218 46h40v16a20 20 0 0 1-40 0z" class="s1"/>
+        </g>
+
+        <!-- counter -->
+        <rect class="counter" x="72" y="92" width="176" height="46" rx="3"/>
+        <rect class="counter-top" x="66" y="84" width="188" height="10" rx="3"/>
+        <line class="plank" x1="72" y1="110" x2="248" y2="110"/>
+
+        <!-- a kettle, so it reads as a shop and not a box -->
+        <g class="kettle">
+          <rect x="140" y="66" width="30" height="18" rx="4"/>
+          <path d="M170 71c7 1 7 9 0 11"/>
+          <path d="M152 66c0-5 6-5 6 0"/>
+          <path class="steam" d="M146 62c0-5 5-5 5-10"/>
+          <path class="steam" d="M158 60c0-5 5-5 5-10"/>
+        </g>
+
+        <!-- fridge -->
+        <g class="part fridge">
+          <rect x="276" y="62" width="40" height="76" rx="4"/>
+          <line x1="276" y1="92" x2="316" y2="92"/>
+          <line class="handle" x1="310" y1="72" x2="310" y2="84"/>
+          <line class="handle" x1="310" y1="100" x2="310" y2="112"/>
+        </g>
+
+        <!-- a queue, one person per upgrade: the crowd you paid for -->
+        <g class="part crowd">
+          <circle cx="34" cy="104" r="7"/><rect x="26" y="113" width="16" height="25" rx="7"/>
+          <circle cx="54" cy="110" r="6"/><rect x="47" y="118" width="14" height="20" rx="6"/>
+        </g>
+
+        <line class="ground" x1="8" y1="138" x2="312" y2="138"/>
+      </svg>
+
+      <p class="owned" id="ownedList"></p>
+    </div>
+
     <div class="card" style="margin-top:14px">
       <h2 id="bizName" style="font-size:1.3rem">Tea stall</h2>
       <p class="dim" id="bizFacts" style="margin:6px 0 0; font-size:.95rem"></p>
@@ -87,18 +146,62 @@
 
       <p class="hint" id="hint"></p>
 
+      <!--
+        The one event that asks instead of tells. It is shown BEFORE the week
+        is run, because a bulk order you learn about after buying your stock
+        is not a decision — and stocking up for it is the entire lesson.
+      -->
+      <div class="offer hidden" id="offerCard">
+        <p class="offer-tag">An order has come in</p>
+        <p class="offer-ask" id="offerAsk"></p>
+        <p class="offer-note" id="offerNote"></p>
+        <div class="offer-pick">
+          <label><input type="radio" name="offer" value="yes"> <span>Take the order</span></label>
+          <label><input type="radio" name="offer" value="no" checked> <span>Turn it down</span></label>
+        </div>
+      </div>
+
       <p style="margin:18px 0 0"><button id="run" class="btn btn-accent">Run the week</button></p>
     </div>
+
+    <div class="card chartcard hidden" id="chartCard">
+      <div class="chart-head">
+        <h3>Your cash</h3>
+        <span class="dim" id="chartNote"></span>
+      </div>
+      <svg class="spark" id="spark" viewBox="0 0 300 70" preserveAspectRatio="none" aria-hidden="true"></svg>
+    </div>
+
+    <div class="card shopkeep" id="shopPanel">
+      <div class="chart-head">
+        <h3>Spend your coins</h3>
+        <span class="coinbal" id="coinBal">0 coins</span>
+      </div>
+      <div class="upgrades" id="upgrades"></div>
+      <p class="note bad hidden" id="shopError" style="margin:12px 0 0"></p>
+    </div>
+  </section>
+
+  <!-- The class table. Top ten only, and no bottom of the table. -->
+  <section id="boardCard" class="card hidden">
+    <div class="chart-head">
+      <h2 style="font-size:1.3rem">Your class</h2>
+      <button class="btn btn-ghost" id="boardBack" style="padding:7px 14px; font-size:.9rem">Back</button>
+    </div>
+    <p class="dim" id="boardNote" style="margin:6px 0 0; font-size:.95rem"></p>
+    <ol class="board" id="boardList"></ol>
   </section>
 
   <section id="resultCard" class="card hidden">
     <h2 id="eventLine" style="font-size:1.3rem">A normal week</h2>
-    <p class="dim" id="soldLine" style="margin:6px 0 14px; font-size:.95rem"></p>
+    <p class="dim" id="soldLine" style="margin:6px 0 10px; font-size:.95rem"></p>
+    <p class="note bad hidden" id="shortLine" style="margin:0 0 14px"></p>
     <table id="ledger"></table>
     <p class="dim num" id="cashLine" style="margin-top:12px; font-size:.95rem"></p>
     <div id="why" class="why hidden"></div>
     <p style="margin:18px 0 0; display:flex; gap:10px; flex-wrap:wrap">
       <button id="whyBtn" class="btn btn-ghost">Why did that happen?</button>
+      <button id="boardBtn" class="btn btn-ghost hidden">Class table</button>
       <button id="next" class="btn">Next week</button>
     </p>
   </section>
@@ -107,7 +210,10 @@
     <h2 id="endTitle" style="font-size:1.3rem">Eight weeks done</h2>
     <p class="dim" id="endLine" style="margin:6px 0 14px; font-size:.95rem"></p>
     <table id="endTable"></table>
-    <p style="margin:18px 0 0"><button id="again" class="btn btn-accent">Play again</button></p>
+    <p style="margin:18px 0 0; display:flex; gap:10px; flex-wrap:wrap">
+      <button id="again" class="btn btn-accent">Play again</button>
+      <button id="boardBtn2" class="btn btn-ghost hidden">Class table</button>
+    </p>
   </section>
 
   <footer>A teacher can see how a whole class did. <a href="/#schools">For schools →</a></footer>
@@ -125,7 +231,8 @@ const api = async (path, body) => (await fetch(path, body ? {
   method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
 } : {})).json();
 
-let STATE = { run: null, info: null, last: null, coins: 0 };
+let STATE = { run: null, info: null, last: null, coins: 0,
+              shop: { upgrades: [], catalogue: {} }, offer: null, history: [], inClass: false };
 
 /* Break-even, recalculated as the student types. This line is level four of
    the curriculum taught without a lesson: move the price, watch how many you
@@ -134,6 +241,9 @@ function refreshHint() {
   const info = STATE.info; if (!info) return;
   const price = Number($('price').value);
   const margin = price - info.unitCost;
+  // The rent a bigger stall charges, not the rent on the price list — the
+  // whole point of that upgrade is that break-even moves when you grow.
+  const fixed = Math.round(info.weeklyFixed * (STATE.shop.effects ? STATE.shop.effects.rent : 1));
   const el = $('hint');
   if (!(margin > 0)) {
     el.innerHTML = 'At <b>' + rupees(price || 0) + '</b> you earn nothing on each sale — it costs you '
@@ -141,8 +251,115 @@ function refreshHint() {
     return;
   }
   el.innerHTML = 'At <b>' + rupees(price) + '</b> you keep <b>' + rupees(margin)
-               + '</b> per sale, so you must sell <b>' + Math.ceil(info.weeklyFixed / margin)
-               + '</b> just to cover the ' + rupees(info.weeklyFixed) + ' rent.';
+               + '</b> per sale, so you must sell <b>' + Math.ceil(fixed / margin)
+               + '</b> just to cover the ' + rupees(fixed) + ' rent.';
+}
+
+/* ── The shop you are looking at ──────────────────────────────────────── */
+
+const OWNED_WORDS = { signboard: 'a signboard', fridge: 'a fridge', bigger: 'a bigger stall' };
+
+function paintShop() {
+  const owned = STATE.shop.upgrades || [];
+  const art = $('shopArt');
+  /* Every part is in the SVG already; the class decides what is visible, so
+     buying something changes the picture without fetching anything. */
+  for (const key of ['signboard', 'fridge', 'bigger']) {
+    art.classList.toggle('has-' + key, owned.includes(key));
+  }
+  /* The queue grows with the shop — the crowd is what the coins bought. */
+  art.classList.toggle('has-crowd', owned.some((k) => k === 'signboard' || k === 'bigger'));
+  $('signText').textContent = (STATE.info?.name || 'Shop').toUpperCase();
+
+  $('ownedList').textContent = owned.length
+    ? 'You have ' + owned.map((k) => OWNED_WORDS[k] || k).join(' and ') + '.'
+    : 'A plain stall. Coins can change that.';
+
+  $('coinBal').textContent = STATE.coins + (STATE.coins === 1 ? ' coin' : ' coins');
+  $('upgrades').innerHTML = Object.entries(STATE.shop.catalogue || {}).map(function ([key, u]) {
+    const have = owned.includes(key);
+    const afford = STATE.coins >= u.cost;
+    return '<div class="up' + (have ? ' up-have' : '') + '">'
+      + '<div><strong>' + u.name + '</strong><br><small>' + u.blurb + '</small></div>'
+      + (have
+          ? '<span class="up-tag">Bought</span>'
+          : '<button class="btn btn-ghost" data-buy="' + key + '"' + (afford ? '' : ' disabled')
+            + '>' + u.cost + ' coins</button>')
+      + '</div>';
+  }).join('');
+
+  for (const b of $('upgrades').querySelectorAll('button[data-buy]')) {
+    b.onclick = () => buy(b.dataset.buy);
+  }
+}
+
+async function buy(kind) {
+  const btn = $('upgrades').querySelector('[data-buy="' + kind + '"]');
+  if (btn) btn.disabled = true;
+  $('shopError').classList.add('hidden');
+  try {
+    const d = await api('/api/upgrade', { kind });
+    if (d.error) {
+      $('shopError').textContent = d.error;
+      $('shopError').classList.remove('hidden');
+      if (btn) btn.disabled = false;
+      return;
+    }
+    STATE.coins = d.balance;
+    STATE.shop.upgrades = d.upgrades;
+    STATE.shop.effects = d.effects;   // without this the rent shown is the old rent
+    paintShop();
+    paintPlay();                      // rent, waste and break-even all just moved
+    $('hCoins').textContent = STATE.coins;
+  } catch (_) {
+    $('shopError').textContent = 'Could not reach the shop. Try again.';
+    $('shopError').classList.remove('hidden');
+    if (btn) btn.disabled = false;
+  }
+}
+
+function paintOffer() {
+  const o = STATE.offer;
+  $('offerCard').classList.toggle('hidden', !o);
+  const no = document.querySelector('input[name="offer"][value="no"]');
+  if (no) no.checked = true;       // never pre-agree to spending their money
+  if (!o) return;
+
+  const unit = STATE.info ? STATE.info.unitCost : 0;
+  $('offerAsk').innerHTML = 'Someone wants <b>' + o.qty + '</b> at <b>' + rupees(o.price)
+    + '</b> each — that is ' + rupees(o.qty * o.price) + ' if you can supply it all.';
+  $('offerNote').textContent = 'Each one costs you ' + rupees(unit)
+    + ', so you keep ' + rupees(o.price - unit) + ' on each. You can only sell what you have — '
+    + 'buy enough stock or you will come up short.';
+}
+
+function paintChart() {
+  const pts = STATE.history || [];
+  $('chartCard').classList.toggle('hidden', pts.length < 2);
+  if (pts.length < 2) return;
+
+  const cash = pts.map((p) => p.cash);
+  /* Scale to the money that actually moved. Anchoring at zero when a shop
+     runs between 5,000 and 6,500 flattens the whole run into a sliver and
+     the chart stops saying anything. Zero is only brought in when the cash
+     has actually gone negative, where the line crossing it is the point. */
+  const low = Math.min(...cash), high = Math.max(...cash);
+  const pad = Math.max(1, (high - low) * 0.15);
+  const lo = low < 0 ? Math.min(0, low - pad) : low - pad;
+  const hi = low < 0 ? Math.max(0, high + pad) : high + pad;
+  const span = (hi - lo) || 1;
+  const x = (i) => (pts.length === 1 ? 0 : (i / (pts.length - 1)) * 300);
+  const y = (v) => 66 - ((v - lo) / span) * 62;
+
+  const line = pts.map((p, i) => x(i).toFixed(1) + ',' + y(p.cash).toFixed(1)).join(' ');
+  const zero = lo < 0 ? '<line class="zero" x1="0" y1="' + y(0).toFixed(1)
+                        + '" x2="300" y2="' + y(0).toFixed(1) + '"/>' : '';
+  const last = pts[pts.length - 1];
+  $('spark').innerHTML = zero
+    + '<polyline class="line" points="' + line + '"/>'
+    + '<circle class="dot' + (last.cash < 0 ? ' neg' : '') + '" cx="' + x(pts.length - 1).toFixed(1)
+    + '" cy="' + y(last.cash).toFixed(1) + '" r="4"/>';
+  $('chartNote').textContent = 'Week ' + pts[0].week + ' to ' + last.week;
 }
 
 function paintPlay() {
@@ -151,10 +368,17 @@ function paintPlay() {
   $('hCash').textContent = rupees(run.cash);
   $('hCoins').textContent = STATE.coins;
   $('bizName').textContent = info.name;
+  const rent = Math.round(info.weeklyFixed * (STATE.shop.effects ? STATE.shop.effects.rent : 1));
   $('bizFacts').textContent =
-    'Rent ' + rupees(info.weeklyFixed) + ' a week · each one costs you ' + rupees(info.unitCost)
-    + (info.perishable ? ' · anything unsold is thrown away' : ' · unsold stock keeps for next week');
+    'Rent ' + rupees(rent) + ' a week · each one costs you ' + rupees(info.unitCost)
+    + (STATE.shop.upgrades.includes('fridge')
+        ? ' · the fridge keeps whatever is left'
+        : (info.perishable ? ' · anything unsold is thrown away'
+                           : ' · unsold stock keeps for next week'));
   $('stockLabel').textContent = info.perishable ? 'How many to make' : 'How many to buy';
+  paintShop();
+  paintOffer();
+  paintChart();
   refreshHint();
   show('playCard');
 }
@@ -162,13 +386,28 @@ function paintPlay() {
 function paintResult(d) {
   const r = d.result;
   $('eventLine').textContent = r.event;
-  $('soldLine').textContent = 'You sold ' + r.sold + ' of the ' + (r.sold + r.leftover) + ' you had'
+  const had = r.sold + r.bulkSold + r.leftover;
+  $('soldLine').textContent = (r.bulkSold
+      ? 'You supplied ' + r.bulkSold + ' to the order and sold ' + r.sold + ' on the street, of the '
+        + had + ' you had'
+      : 'You sold ' + r.sold + ' of the ' + had + ' you had')
     + (r.stockOut ? ' — and ran out while people still wanted more.' : '.');
 
-  const rows = [
-    ['Money in', r.revenue, ''],
-    ['What you sold cost you', -r.cogs, ''],
-  ];
+  // Over-promising is the mistake this card exists to teach, so it is said
+  // plainly rather than left for the student to spot in the arithmetic.
+  $('shortLine').classList.toggle('hidden', !r.bulkShort);
+  if (r.bulkShort) {
+    $('shortLine').textContent = 'You promised ' + (r.bulkSold + r.bulkShort) + ' and could only '
+      + 'supply ' + r.bulkSold + '. The other ' + r.bulkShort + ' walked away — next time, buy the '
+      + 'stock before you say yes.';
+  }
+
+  const rows = r.bulkSold
+    ? [['Money in — the order (' + r.bulkSold + ')', r.bulkRevenue, ''],
+       ['Money in — the street (' + r.sold + ')', r.revenue - r.bulkRevenue, ''],
+       ['What you sold cost you', -r.cogs, '']]
+    : [['Money in', r.revenue, ''],
+       ['What you sold cost you', -r.cogs, '']];
   if (r.wasted) rows.push(['Thrown away (' + r.spoiled + ')', -r.wasted, 'waste']);
   rows.push(['Rent', -r.fixed, '']);
 
@@ -214,6 +453,9 @@ async function start() {
     b.onclick = async () => {
       const r = await api('/api/run', { business: b.dataset.key });
       STATE.run = r.run; STATE.info = r.info;
+      STATE.shop = r.shop || { upgrades: [], catalogue: {}, effects: { rent: 1 } };
+      STATE.offer = r.offer || null;
+      STATE.history = [];          // a new shop starts its chart again
       paintPlay();
     };
   }
@@ -225,11 +467,14 @@ $('price').oninput = refreshHint;
 $('run').onclick = async () => {
   $('run').disabled = true;
   try {
+    const took = !!document.querySelector('input[name="offer"][value="yes"]:checked');
     const d = await api('/api/week', {
-      price: Number($('price').value), stock: Number($('stock').value),
+      price: Number($('price').value), stock: Number($('stock').value), takeOffer: took,
     });
     if (d.error) { $('hint').textContent = d.error; return; }
-    STATE.run = d.run; STATE.last = d; STATE.coins = d.points;
+    STATE.run = d.run; STATE.last = d; STATE.coins = d.balance;
+    STATE.offer = d.offer || null;
+    STATE.history = (STATE.history || []).concat([{ week: d.week, cash: d.result.cashAfter }]);
     paintResult(d);
   } finally { $('run').disabled = false; }
 };
@@ -263,6 +508,46 @@ $('whyBtn').onclick = async () => {
 
 $('again').onclick = start;
 
+/* ── The class table ──────────────────────────────────────────────────── */
+
+async function showBoard() {
+  const d = await api('/api/leaderboard');
+  $('boardNote').textContent = d.players
+    ? d.className + ' · ' + d.players + (d.players === 1 ? ' shop so far' : ' shops so far')
+    : 'Nobody in ' + (d.className || 'your class') + ' has finished a week yet.';
+
+  const rows = (d.top || []).map((r) =>
+    '<li class="' + (r.you ? 'me' : '') + '"><span class="pos">' + r.rank + '</span>'
+    + '<span class="who">' + esc(r.name) + (r.you ? ' <em>(you)</em>' : '') + '</span>'
+    + '<span class="num">' + rupees(r.cash) + '</span></li>').join('');
+
+  /* Shown only when you are outside the ten. There is no bottom of this
+     table on purpose, so this is the one line that tells you where you are. */
+  const you = d.you && !d.top.some((r) => r.you)
+    ? '<li class="me adrift"><span class="pos">' + d.you.rank + '</span>'
+      + '<span class="who">' + esc(d.you.name) + ' <em>(you)</em></span>'
+      + '<span class="num">' + rupees(d.you.cash) + '</span></li>'
+    : '';
+
+  $('boardList').innerHTML = rows + you
+    || '<li class="empty-row">Play a week and you will appear here.</li>';
+  show('boardCard');
+}
+
+const esc = (t) => String(t ?? '').replace(/[&<>"]/g,
+  (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+$('boardBtn').onclick = showBoard;
+$('boardBtn2').onclick = showBoard;
+/* Back to wherever the student was — the table is a detour, not a screen
+   you have to escape by starting the game over. */
+$('boardBack').onclick = () => {
+  if (STATE.last && STATE.last.over) show('endCard');
+  else if (STATE.last) show('resultCard');
+  else if (STATE.run) paintPlay();
+  else start();
+};
+
 /* ── Joining a class ──────────────────────────────────────────────────── */
 
 function paintJoin(me) {
@@ -272,6 +557,10 @@ function paintJoin(me) {
   if (joined) {
     $('joinedAs').textContent = me.name + ' · ' + me.className;
   }
+  // No class, no table. Playing alone is the demo and it has nobody to rank.
+  STATE.inClass = !!joined;
+  $('boardBtn').classList.toggle('hidden', !joined);
+  $('boardBtn2').classList.toggle('hidden', !joined);
 }
 
 $('joinOpen').onclick = () => {
@@ -295,6 +584,7 @@ $('joinForm').onsubmit = async (e) => {
     }
     $('joinForm').classList.add('hidden');
     paintJoin({ className: d.className, name: d.name });
+    STATE.coins = STATE.coins || 0;
   } catch (_) {
     $('joinError').textContent = 'Could not reach the server. Try again.';
     $('joinError').classList.remove('hidden');
@@ -308,9 +598,12 @@ $('joinForm').onsubmit = async (e) => {
   const me = await api('/api/me');
   paintJoin(me);
   const cur = await api('/api/run');
-  STATE.coins = me.points || 0;
+  STATE.coins = me.balance ?? me.points ?? 0;   // what is left to spend, not what was earned
   if (cur.run && !cur.run.over) {
     STATE.run = cur.run; STATE.info = cur.info;
+    STATE.shop = cur.shop || { upgrades: [], catalogue: {}, effects: { rent: 1 } };
+    STATE.offer = cur.offer || null;
+    STATE.history = cur.history || [];
     paintPlay();
   } else {
     start();

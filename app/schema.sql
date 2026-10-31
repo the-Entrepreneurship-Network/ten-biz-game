@@ -93,3 +93,22 @@ CREATE TABLE IF NOT EXISTS membership (
 );
 
 CREATE INDEX IF NOT EXISTS membership_by_class ON membership(class_id);
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- Phase 4: what coins buy.
+--
+-- One row per upgrade per run, so a new run starts plain again — the shop you
+-- built belongs to that shop, not to you forever. Still CREATE TABLE IF NOT
+-- EXISTS with no ALTER, so `db:init` stays re-runnable.
+--
+-- Coin balance is NOT stored. A purchase is written to `event` with negative
+-- points, so the SUM that already computes a student's coins keeps working
+-- and the two numbers can never drift apart.
+-- ─────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS upgrade (
+    run_id     TEXT NOT NULL REFERENCES run(id),
+    kind       TEXT NOT NULL,
+    bought_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (run_id, kind)
+);
