@@ -57,11 +57,24 @@ export function normaliseCode(input) {
  * hand-rolled hash on a password is worse than either. WebCrypto's PBKDF2 is
  * the honest choice here.
  *
- * ponytail: the iteration count is the one knob. Higher is safer and slower,
- * and a Worker has a CPU-time limit per request. If signup or login ever
- * fails with a CPU timeout, lower this — do not remove the hashing.
+ * THE COUNT IS CAPPED BY THE HOSTING PLAN, NOT BY WHAT IS IDEAL.
+ *
+ * The Workers free plan allows about 10ms of CPU per request. 100,000
+ * iterations measured at ~20ms, so every signup and every login was killed
+ * mid-request — the browser saw a dropped connection, not an error. 10,000
+ * measures at ~2ms, which leaves room for the rest of the request even if
+ * Cloudflare's crypto runs slower than the machine this was measured on.
+ *
+ * This is below what OWASP recommends for PBKDF2 and it is a deliberate
+ * trade: every account still gets its own random salt, so a stolen table
+ * cannot be attacked with a rainbow table or cracked once for everybody, and
+ * what sits behind a teacher account is a list of pupils' first names.
+ *
+ * Raising it needs the paid plan (~₹420/month, which the free tier does not
+ * cost) — and raising it is safe to do, because the count each password was
+ * hashed with is stored beside its salt. Nobody gets locked out by a change.
  */
-export const PBKDF2_ITERATIONS = 100_000;
+export const PBKDF2_ITERATIONS = 10_000;
 
 const enc = new TextEncoder();
 
@@ -101,15 +114,38 @@ export function timingSafeEqual(a, b) {
     return diff === 0;
 }
 
-/** A new password's salt and hash, ready to store. */
+/**
+ * A new password's salt and hash, ready to store.
+ *
+ * The salt is stored as "<iterations>$<hex>", so the cost each password was
+ * hashed with travels with it. Without that, raising PBKDF2_ITERATIONS would
+ * silently lock out every account created before the change — the hash would
+ * simply stop matching, with no way to tell that from a wrong password.
+ */
 export async function newPasswordRecord(password) {
     const salt = toHex(randomBytes(16));
-    return { salt, hash: await hashPassword(password, salt) };
+    return {
+        salt: `${PBKDF2_ITERATIONS}$${salt}`,
+        hash: await hashPassword(password, salt, PBKDF2_ITERATIONS),
+    };
+}
+
+/** Pull the cost and the salt back apart. A bare salt means the default. */
+export function splitSalt(stored) {
+    const s = String(stored ?? '');
+    const at = s.indexOf('$');
+    if (at === -1) return { iterations: PBKDF2_ITERATIONS, salt: s };
+    const n = Number.parseInt(s.slice(0, at), 10);
+    return {
+        iterations: Number.isInteger(n) && n > 0 ? n : PBKDF2_ITERATIONS,
+        salt: s.slice(at + 1),
+    };
 }
 
 /** Does this password match what was stored? */
-export async function passwordMatches(password, saltHex, expectedHash) {
-    const actual = await hashPassword(password, saltHex);
+export async function passwordMatches(password, stored, expectedHash) {
+    const { iterations, salt } = splitSalt(stored);
+    const actual = await hashPassword(password, salt, iterations);
     return timingSafeEqual(actual, expectedHash);
 }
 
