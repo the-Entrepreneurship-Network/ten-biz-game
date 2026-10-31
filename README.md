@@ -19,6 +19,17 @@ Live at <https://ten-biz-game.tenetwork.workers.dev>
 
 ## Deploying
 
+**Merging a pull request deploys it.** A GitHub Action runs the tests, creates
+any new tables and pushes the Worker — about a minute, no laptop involved.
+Watch it on the repository's Actions tab.
+
+It needs one repository secret, `CLOUDFLARE_API_TOKEN`, holding a Cloudflare
+API token with `Workers Scripts: Edit`, `D1: Edit` and `Workers AI: Edit` on
+this account.
+
+Everything below is the manual route, for when you want to deploy without
+merging anything.
+
 > **Never run `wrangler d1 create` again.** The database already exists and its
 > id is committed in `app/wrangler.toml`. Running it a second time makes a
 > SECOND, empty database and orphans the live one — with every class, every
