@@ -27,6 +27,17 @@ It needs one repository secret, `CLOUDFLARE_API_TOKEN`, holding a Cloudflare
 API token with `Workers Scripts: Edit`, `D1: Edit` and `Workers AI: Edit` on
 this account.
 
+The Worker itself needs two settings, both in the Cloudflare dashboard under
+Settings → Variables and Secrets, and both as **Secrets** rather than plain
+variables so a deploy cannot wipe them:
+
+    ADMIN_EMAILS     who may open /admin, comma-separated
+    ADMIN_PASSWORD   a second passphrase that page also asks for
+
+Both are needed. Either one missing means nobody reaches /admin, which is
+deliberate — that page can reset any teacher's password, and neither secret
+is in the database, so a stolen `teacher` table does not open it.
+
 Everything below is the manual route, for when you want to deploy without
 merging anything.
 

@@ -181,6 +181,24 @@ export function isAdminEmail(email, configured) {
     return !!who && list.includes(who);
 }
 
+/**
+ * The second lock on the staff page.
+ *
+ * Being signed in as an address on the admin list is the first. This is a
+ * separate secret that lives only in the Worker's configuration and is never
+ * written to the database — so a stolen `teacher` table, with every hash in
+ * it, still cannot produce admin access. Admin can reset any teacher's
+ * password, which makes it the one place worth two independent secrets.
+ *
+ * Unset means nobody, like the address list: a lock that opens when its key
+ * is missing is not a lock.
+ */
+export function adminPassOk(submitted, configured) {
+    const want = String(configured ?? '');
+    if (want.length < 8) return false;          // unset, or too short to be one
+    return timingSafeEqual(String(submitted ?? ''), want);
+}
+
 /** Heads can see the whole school; teachers see their own classes. */
 export const isHead = (staffRow) => staffRow?.role === 'head';
 

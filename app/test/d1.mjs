@@ -46,13 +46,15 @@ function wrap(db) {
  * depends on it being sent again. A client that forgets cookies would make
  * every authorisation test pass for the wrong reason.
  */
-export function client(worker, env) {
+export function client(worker, env, always = {}) {
     const jar = new Map();
 
     return {
         jar,
         async go(path, body, method) {
-            const headers = { 'content-type': 'application/json' };
+            // `always` carries headers every request needs — the staff page's
+            // passphrase, which is sent per request rather than held in a session.
+            const headers = { 'content-type': 'application/json', ...always };
             if (jar.size) {
                 headers.cookie = [...jar].map(([k, v]) => `${k}=${v}`).join('; ');
             }

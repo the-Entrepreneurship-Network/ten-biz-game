@@ -36,6 +36,34 @@
   </p>
 </main>
 
+<!--
+  The second lock. The account you signed in with is the first; this is a
+  separate secret that lives only in the Worker's configuration and never in
+  the database. It is held in this tab and sent with each request — there is
+  no admin session to steal, and closing the tab ends it.
+-->
+<main class="sheet hidden" id="lockView">
+  <h1 style="font-size:1.6rem">Staff passphrase</h1>
+  <p class="dim" style="margin:10px 0 24px">
+    Signed in as <strong id="whoami"></strong>. This page needs the staff
+    passphrase as well.
+  </p>
+  <form id="passForm">
+    <div class="field">
+      <label for="passInput">Passphrase</label>
+      <input type="password" id="passInput" autocomplete="off" required autofocus>
+    </div>
+    <button class="btn btn-accent" id="passGo" style="width:100%">Unlock</button>
+    <p class="note bad hidden" id="passError" style="margin:16px 0 0">
+      That is not the passphrase.
+    </p>
+  </form>
+  <p class="dim" style="margin-top:26px; font-size:.92rem">
+    It is not stored anywhere you can read it back. If it is lost, set a new
+    one on the Worker and use that.
+  </p>
+</main>
+
 <main class="board hidden" id="adminView">
   <p class="eyebrow">TEN staff</p>
   <h1 style="font-size:2rem">Schools and teachers</h1>
@@ -82,10 +110,17 @@
 const $ = (id) => document.getElementById(id);
 const esc = (t) => String(t ?? '').replace(/[&<>"]/g,
   (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+/* Kept in this tab only: never written to storage, never put in the URL. A
+   refresh asks again, which is the right trade for a page one person opens
+   occasionally and which can reset anybody's password. */
+let PASS = '';
+
 const api = async (path, body) => {
+  const headers = { 'content-type': 'application/json' };
+  if (PASS) headers['x-admin-pass'] = PASS;
   const res = await fetch(path, body
-    ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }
-    : {});
+    ? { method: 'POST', headers, body: JSON.stringify(body) }
+    : { headers });
   try { return await res.json(); } catch (_) { return { error: 'The server did not answer properly.' }; }
 };
 const when = (iso) => String(iso ?? '').slice(0, 10);
@@ -96,11 +131,42 @@ $('signOut').onclick = async (e) => {
   location.href = '/teacher';
 };
 
+/**
+ * Three outcomes, and only one of them opens anything.
+ *
+ * Not signed in, or signed in as an address that is not staff: "Nothing
+ * here", the same as a page that does not exist. Signed in as staff without
+ * the passphrase: asked for it. Both: the page.
+ */
+async function start() {
+  const me = await api('/api/teacher/me');
+  if (me.error || !me.isAdmin) { $('shutView').classList.remove('hidden'); return; }
+
+  $('whoami').textContent = me.teacher.email;
+  if (!await load()) $('lockView').classList.remove('hidden');
+}
+
+$('passForm').onsubmit = async (e) => {
+  e.preventDefault();
+  $('passGo').disabled = true;
+  $('passError').classList.add('hidden');
+  try {
+    PASS = $('passInput').value;
+    if (await load()) {
+      $('passInput').value = '';
+      $('lockView').classList.add('hidden');
+      return;
+    }
+    PASS = '';
+    $('passError').classList.remove('hidden');
+  } finally { $('passGo').disabled = false; }
+};
+
 async function load() {
   const d = await api('/api/admin/schools');
-  // 404 for a signed-out visitor and for a signed-in non-admin alike, so this
-  // page cannot be used to find out whether an admin area exists.
-  if (d.error) { $('shutView').classList.remove('hidden'); return; }
+  // The same 404 whether the passphrase is wrong or the address is not
+  // staff — neither answer tells the caller which half they got right.
+  if (d.error) return false;
 
   $('schoolCount').textContent = d.schools.length
     + (d.schools.length === 1 ? ' school' : ' schools');
@@ -132,6 +198,7 @@ async function load() {
   $('sPrice').value = s.price || '';
   $('sEmail').value = s.contact_email || '';
   $('adminView').classList.remove('hidden');
+  return true;
 }
 
 async function reset(teacherId, name) {
@@ -164,7 +231,7 @@ $('settingsForm').onsubmit = async (e) => {
   } finally { $('saveSettings').disabled = false; }
 };
 
-load();
+start();
 </script>
 </body>
 </html>
