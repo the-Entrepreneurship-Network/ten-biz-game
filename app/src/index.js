@@ -128,9 +128,15 @@ async function handle(request, env) {
         // Teacher routes resolve first and return on their own. They have a
         // separate identity, and a teacher opening a dashboard must not mint
         // a student id — that would put a phantom pupil in their own class.
+        // `/api/usage` is neither a teacher's nor a pupil's: it is the TEN
+        // portal's server asking for counts. It is listed here because the
+        // fall-through below mints a student id on first contact — without
+        // this line every poll from the portal would quietly add a phantom
+        // pupil to the game, and the number it came to read would be the
+        // number it was inflating.
         if (path.startsWith('/api/teacher') || path.startsWith('/api/class')
             || path.startsWith('/api/school') || path.startsWith('/api/admin')
-            || path === '/api/settings') {
+            || path === '/api/settings' || path === '/api/usage') {
             return teacherRoutes(request, env, url, path);
         }
 
@@ -597,6 +603,59 @@ async function teacherRoutes(request, env, url, path) {
     // The landing page reads this without a login, so it resolves before the
     // sign-in gate. Only the known keys are ever returned.
     if (path === '/api/settings' && !post) return say(await settingsOf(env.DB));
+
+    /* ── Usage, for the TEN portal ───────────────────────────────────────
+     *
+     * The internship portal's admin shows which schools are using the game.
+     * It asks from its own server, so there is no teacher session to check —
+     * which is why this does not live in the /api/admin block, whose two
+     * locks are an admin's email AND a password, both tied to a signed-in
+     * person. Widening that to accept a single machine secret would have
+     * turned two locks into one for every admin route at once.
+     *
+     * So: a separate door, its own secret, and counts only. No email, no
+     * teacher name, no pupil name, nothing about an individual — if this key
+     * leaks it exposes how many classes a school ran, and that is all. A
+     * school's name is the thing the portal is asking about, so it stays.
+     *
+     * USAGE_KEY unset means closed: adminPassOk refuses anything under eight
+     * characters, so a Worker deployed without the secret answers 404 like
+     * every other unauthorised request here.
+     * ─────────────────────────────────────────────────────────────────── */
+
+    if (path === '/api/usage' && !post) {
+        if (!adminPassOk(request.headers.get('x-usage-key'), env.USAGE_KEY)) {
+            return say({ error: 'Not found.' }, 404);   // do not confirm it exists
+        }
+
+        const schools = await env.DB.prepare(
+            `SELECT c.name,
+                    (SELECT COUNT(*) FROM staff s WHERE s.school_id = c.id) AS teachers,
+                    (SELECT COUNT(*) FROM class k
+                       JOIN staff s2 ON s2.teacher_id = k.teacher_id
+                      WHERE s2.school_id = c.id) AS classes,
+                    (SELECT COUNT(DISTINCT m.student_id) FROM membership m
+                       JOIN class k2 ON k2.id = m.class_id
+                       JOIN staff s3 ON s3.teacher_id = k2.teacher_id
+                      WHERE s3.school_id = c.id) AS pupils,
+                    c.created_at
+               FROM school c
+              ORDER BY c.created_at DESC
+              LIMIT 200`
+        ).all();
+
+        const totals = await env.DB.prepare(
+            `SELECT (SELECT COUNT(*) FROM school)  AS schools,
+                    (SELECT COUNT(*) FROM teacher) AS teachers,
+                    (SELECT COUNT(*) FROM class)   AS classes,
+                    (SELECT COUNT(*) FROM student) AS pupils,
+                    -- Runs started, not weeks played: a run carries its own
+                    -- week counter and one pupil may start several.
+                    (SELECT COUNT(*) FROM run)     AS runs`
+        ).first();
+
+        return say({ schools: schools.results ?? [], totals: totals ?? {} });
+    }
 
     /* ── Signing up ──────────────────────────────────────────────────── */
 
